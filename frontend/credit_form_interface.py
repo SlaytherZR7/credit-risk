@@ -149,10 +149,10 @@ def create_credit_application_form():
                                    "PROFESSIONAL_ZIP_3"],
         'Financial Information': ["PERSONAL_MONTHLY_INCOME", "OTHER_INCOMES",
                                   "QUANT_BANKING_ACCOUNTS", "QUANT_SPECIAL_BANKING_ACCOUNTS",
-                                  "PERSONAL_ASSETS_VALUE", "QUANT_CARS", "FLAG_ACSP_RECORD"],
+                                  "PERSONAL_ASSETS_VALUE", "QUANT_CARS"],
         'Credit Card Information': ["FLAG_VISA", "FLAG_MASTERCARD", "FLAG_DINERS",
                                     "FLAG_AMERICAN_EXPRESS", "FLAG_OTHER_CARDS", "QUANT_ADDITIONAL_CARDS"],
-        'Documentation': ["FLAG_HOME_ADDRESS_DOCUMENT", "FLAG_RG", "FLAG_CPF", "FLAG_INCOME_PROOF"],
+        'Documentation': ["FLAG_HOME_ADDRESS_DOCUMENT", "FLAG_RG", "FLAG_CPF", "FLAG_INCOME_PROOF", "FLAG_ACSP_RECORD"],
         'Application Details': ["PAYMENT_DAY", "APPLICATION_SUBMISSION_TYPE", "POSTAL_ADDRESS_TYPE", "PRODUCT"],
     }
 
