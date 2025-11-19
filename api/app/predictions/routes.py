@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from app.auth.dependencies import require_client
+from fastapi import APIRouter, Depends, HTTPException, Request
+from app.auth.dependencies import get_current_user
 from app.users.models import User
 import httpx
 
@@ -9,9 +9,11 @@ MODEL_SERVICE_URL = "http://ml_model:8002"
 
 @router.post("/predict-one")
 async def predict_one(
-    payload: dict,
-    current_user: User = Depends(require_client),
+    request: Request,                 # ← Recibe Request, no dict
+    current_user: User = Depends(get_current_user),
 ):
+    payload = await request.json()    # ← JSON crudo sin validación
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(f"{MODEL_SERVICE_URL}/predict", json=payload)
@@ -28,14 +30,13 @@ async def predict_one(
             )
 
     return response.json()
-
-
-# ---- PREDICT BATCH ----
 @router.post("/predict-batch")
 async def predict_batch(
-    payload: dict,
-    current_user: User = Depends(require_client),
+    request: Request,                 # ← igual: Request en lugar de dict
+    current_user: User = Depends(get_current_user),
 ):
+    payload = await request.json()    # ← JSON crudo
+
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(f"{MODEL_SERVICE_URL}/predict-batch", json=payload)
@@ -53,11 +54,10 @@ async def predict_batch(
 
     return response.json()
 
-
 @router.get("/result/{job_id}")
 async def get_result(
     job_id: str,
-    current_user: User = Depends(require_client),
+    current_user: User = Depends(get_current_user),
 ):
     async with httpx.AsyncClient() as client:
         try:

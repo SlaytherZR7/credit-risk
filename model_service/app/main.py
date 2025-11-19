@@ -27,9 +27,10 @@ def startup_event():
     model = init_model()
     print("Model loaded successfully.")
 
-
 @app.post("/predict")
 def enqueue_prediction(request: PredictionRequest):
+    print("\n📥 MODEL SERVICE /predict recibió:")
+    print(request.dict()) 
     try:
         job = queue.enqueue("app.worker.predict_one_task", request.features)
         return {"job_id": job.get_id(), "status": job.get_status()}
@@ -38,9 +39,11 @@ def enqueue_prediction(request: PredictionRequest):
 
 @app.post("/predict-batch")
 def enqueue_batch_prediction(request: BatchPredictionRequest):
+    print("\n📥 MODEL SERVICE /predict-batch recibió:")
+    print(request.features)     # ← imprime la lista cruda
+
     try:
-        data = [item.dict() for item in request.features]
-        job = queue.enqueue("app.worker.predict_batch_task", data)
+        job = queue.enqueue("app.worker.predict_batch_task", request.features)
         return {"job_id": job.get_id(), "status": job.get_status()}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

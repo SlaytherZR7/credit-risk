@@ -2,6 +2,7 @@
 Streamlit User Interface for Credit Risk Analysis System
 """
 import os
+import json
 import streamlit as st
 import requests
 import pandas as pd
@@ -173,8 +174,26 @@ def check_api_health() -> bool:
 
 def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
     """Send individual prediction to API."""
+    st.subheader("JSON enviado al backend (individual):")
+    st.code(json.dumps({"features": [profile_data]}, indent=2))
+    token = st.session_state.get("token")  # ⬅️ Get token
+
+    if not token:
+        st.error("❌ You must log in before making predictions.")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {token}".strip(),
+        "Content-Type": "application/json"
+    }
+    
     try:
-        response = requests.post(f"{API_BASE_URL}/predict", json=profile_data, timeout=10)
+        response = requests.post(
+            f"{API_BASE_URL}/predictions/predict-one",
+            json={"features": [profile_data]},  
+            headers=headers,     
+            timeout=10
+        )
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -183,8 +202,26 @@ def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
 
 def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Send batch predictions to API."""
+    st.subheader("JSON enviado al backend (batch):")
+    st.code(json.dumps({"features": profiles_data}, indent=2))
+    token = st.session_state.get("token")  # ⬅️ recuperamos el token
+
+    if not token:
+        st.error("❌ You must log in before making predictions.")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {token}".strip(),
+        "Content-Type": "application/json"
+    }
+
     try:
-        response = requests.post(f"{API_BASE_URL}/predict/batch", json={"profiles": profiles_data}, timeout=30)
+        response = requests.post(
+            f"{API_BASE_URL}/predictions/predict-batch",
+            json={"features": profiles_data},
+            headers=headers,
+            timeout=30
+        )
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -205,48 +242,34 @@ def simulate_credit_decisions(profiles_data: List[Dict[str, Any]], decision_thre
         st.error(f"Simulation failed: {e}")
         return None
 
-def build_model_payload_from_form(form: Dict[str, Any]) -> Dict[str, Any]:
-    """Mapea el formulario completo a los 5 campos requeridos por el modelo.
+def build_model_payload_from_form(form_data: dict) -> dict:
+    payload = {}
 
-    - income = PERSONAL_MONTHLY_INCOME + OTHER_INCOMES
-    - age = AGE
-    - employment_length = floor(MONTHS_IN_THE_JOB / 12)
-    - credit_amount ≈ 20% de PERSONAL_ASSETS_VALUE (si falta, 10000)
-    - debt_ratio ≈ credit_amount / (income*12 + assets), recortado a [0, 0.9]
-    """
-    def to_float(x, default=0.0):
-        try:
-            if x is None:
-                return default
-            return float(x)
-        except Exception:
-            return default
+    for key, value in form_data.items():
+        # Vacíos → None
+        if value in ["", None]:
+            payload[key] = None
 
-    def to_int(x, default=0):
-        try:
-            if x is None:
-                return default
-            return int(float(x))
-        except Exception:
-            return default
+        # Checkbox (True/False) → 1/0
+        elif isinstance(value, bool):
+            payload[key] = int(value)
 
-    income = to_float(form.get("PERSONAL_MONTHLY_INCOME", 0)) + to_float(form.get("OTHER_INCOMES", 0))
-    age = to_int(form.get("AGE", 30), 30)
-    months_job = to_int(form.get("MONTHS_IN_THE_JOB", 0), 0)
-    employment_length = max(0, months_job // 12)
-    assets = to_float(form.get("PERSONAL_ASSETS_VALUE", 0))
-    credit_amount = max(1000.0, round(assets * 0.2, 2))
+        else:
+            try:
+                # Si es número entero (ej: 15 o "15") → int
+                if isinstance(value, int):
+                    payload[key] = value
+                elif isinstance(value, str) and value.isdigit():
+                    payload[key] = int(value)
+                # Si no es número entero → dejar como string
+                else:
+                    payload[key] = value
+            except:
+                payload[key] = value
 
-    denom = max(1.0, income * 12.0 + assets)
-    debt_ratio = min(0.9, max(0.0, credit_amount / denom))
+    return payload
 
-    return {
-        "income": float(income),
-        "age": int(age),
-        "credit_amount": float(credit_amount),
-        "employment_length": int(employment_length),
-        "debt_ratio": float(debt_ratio),
-    }
+
 
 def display_risk_result(prediction: Dict[str, Any]):
     """Display risk prediction with correct color and layout."""
@@ -372,6 +395,7 @@ def main():
                     # Caso normal: consultar modelo
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
+                        st.write(model_payload)
                         result = predict_single_profile(model_payload)
                     if result:
                         risk_score = result.get("risk_score", 0.5)  # valor entre 0 y 1
@@ -416,7 +440,7 @@ def main():
                     # Caso normal: consultar modelo
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
-                        result = predict_single_profile(model_payload)
+                        result = predict_batch_profiles([model_payload])
                     if result:
                         risk_score = result.get("risk_score", 0.5)  # valor entre 0 y 1
                         recommendation = result.get("recommendation", "Review")
