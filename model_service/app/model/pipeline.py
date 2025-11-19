@@ -11,11 +11,11 @@ import cloudpickle
 BASE_DIR = "/app/artifacts"
 
 PREPROCESSOR_PATH = os.path.join(BASE_DIR, "preprocessing_pipeline.joblib")
-MODEL_PATH = os.path.join(BASE_DIR, "model_stack_prod.pkl")   # ← TU MODELO
+MODEL_PATH = os.path.join(BASE_DIR, "model_stack_prod.pkl")   # ← TU MODELO LGBM
 META_PATH = os.path.join(BASE_DIR, "model_metadata.json")
 
 # ======================================================================
-# ⭐ VARIABLES GLOBALES
+# ⭐ VARIABLES GLOBALES (Cache)
 # ======================================================================
 
 _preprocessor = None
@@ -24,23 +24,17 @@ _threshold = None
 
 
 # ======================================================================
-# ⭐ CARGA DE MODELO + PREPROCESSING (solo se ejecuta UNA VEZ)
+# ⭐ CARGA DE MODELO + PREPROCESSING (1 sola vez)
 # ======================================================================
 
 def init_model():
-    """
-    Carga el pipeline de preprocesamiento + modelo entrenado +
-    metadata del threshold. Se ejecuta una sola vez en el startup
-    del servicio o antes de la primera predicción.
-    """
     global _preprocessor, _model, _threshold
 
-    # Si ya está cargado, no volver a cargarlo
     if _preprocessor is not None and _model is not None:
         return _preprocessor, _model
 
     # -----------------------
-    # Cargar Preprocessing
+    # Preprocessing pipeline
     # -----------------------
     if not os.path.exists(PREPROCESSOR_PATH):
         raise FileNotFoundError(f"❌ Preprocessor not found: {PREPROCESSOR_PATH}")
@@ -50,7 +44,7 @@ def init_model():
         _preprocessor = cloudpickle.load(f)
 
     # -----------------------
-    # Cargar Modelo LGBM
+    # Modelo LightGBM
     # -----------------------
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(f"❌ Model file not found: {MODEL_PATH}")
@@ -60,14 +54,14 @@ def init_model():
         _model = cloudpickle.load(f)
 
     # -----------------------
-    # Cargar Metadata
+    # Metadata (threshold)
     # -----------------------
     if os.path.exists(META_PATH):
         with open(META_PATH, "r") as f:
             metadata = json.load(f)
         _threshold = metadata.get("best_threshold", 0.5)
     else:
-        _threshold = 0.5   # valor por defecto
+        _threshold = 0.5
 
     print("✅ Model + preprocessing loaded successfully")
     print(f"🔎 Threshold: {_threshold}")
@@ -80,28 +74,19 @@ def init_model():
 # ======================================================================
 
 def predict_single(features: dict):
-    """
-    Flujo de predicción:
-    - recibe JSON con features crudas
-    - arma DataFrame
-    - aplica pipeline de preprocessing
-    - aplica modelo LightGBM
-    """
     preprocessor, model = init_model()
 
     # JSON → DataFrame
     X_raw = pd.DataFrame([features])
 
-    # Preprocessing oficial
+    # Preprocessing
     X_processed = preprocessor.transform(X_raw)
 
-    # Predict proba
+    # Predict prob
     proba = float(model.predict_proba(X_processed)[0, 1])
-
     if not np.isfinite(proba):
         proba = 0.0
 
-    # Clasificación con threshold
     pred = int(proba >= _threshold)
 
     return {
@@ -116,10 +101,22 @@ def predict_single(features: dict):
 # ======================================================================
 
 def predict_batch(batch: list):
-    """
-    Predicción para múltiples filas.
-    """
+    preprocessor, model = init_model()
+
+    df = pd.DataFrame(batch)
+    X_processed = preprocessor.transform(df)
+
+    probas = model.predict_proba(X_processed)[:, 1]
+
     results = []
-    for row in batch:
-        results.append(predict_single(row))
+    for proba in probas:
+        if not np.isfinite(proba):
+            proba = 0.0
+        pred = int(proba >= _threshold)
+        results.append({
+            "probability": float(proba),
+            "prediction": pred,
+            "threshold_used": _threshold
+        })
+
     return results

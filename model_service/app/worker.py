@@ -1,19 +1,19 @@
 from redis import Redis
 from rq import Worker, Queue
 
-from app.model.preprocess import EXPECTED_COLS
-from model_service.app.model.pipeline_sly import init_model, predict_single, predict_batch
+from app.model.pipeline import predict_single, predict_batch, init_model
 
 redis_conn = Redis(host="redis", port=6379)
 queue = Queue("model_queue", connection=redis_conn)
 
-model = init_model()
+# Cargar modelo + preprocessor una vez
+init_model()
 
 def predict_one_task(features: dict):
-    return predict_single(features, EXPECTED_COLS)
+    return predict_single(features)
 
 def predict_batch_task(batch: list):
-    return predict_batch(batch, EXPECTED_COLS)
+    return predict_batch(batch)
 
 if __name__ == "__main__":
     print("Model worker started, waiting for tasks...")

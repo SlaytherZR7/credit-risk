@@ -2,15 +2,23 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
+# Añadir PYTHONPATH
+ENV PYTHONPATH="/app"
+
 # --- FIX LightGBM ---
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  libgomp1 && \
-  rm -rf /var/lib/apt/lists/*
+    libgomp1 && \
+    rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# Copiar requirements
+COPY model_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY ./app /app/app
-COPY ./artifacts /app/artifacts
+# Copiar la aplicación del model service
+COPY model_service/app /app/app
+COPY model_service/artifacts /app/artifacts
+
+# Copiar el módulo con BaseCleaner, CodeImputer, etc.
+COPY src /app/src
 
 CMD ["python", "-m", "app.worker"]
