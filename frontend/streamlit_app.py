@@ -174,8 +174,8 @@ def check_api_health() -> bool:
 
 def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
     """Send individual prediction to API."""
-    st.subheader("JSON enviado al backend (individual):")
-    st.code(json.dumps({"features": [profile_data]}, indent=2))
+    # st.subheader("JSON enviado al backend (individual):")
+    # st.code(json.dumps({"features": [profile_data]}, indent=2))
     token = st.session_state.get("token")  # ⬅️ Get token
 
     if not token:
@@ -202,8 +202,8 @@ def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
 
 def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Send batch predictions to API."""
-    st.subheader("JSON enviado al backend (batch):")
-    st.code(json.dumps({"features": profiles_data}, indent=2))
+    # st.subheader("JSON enviado al backend (batch):")
+    # st.code(json.dumps({"features": profiles_data}, indent=2))
     token = st.session_state.get("token")  # ⬅️ recuperamos el token
 
     if not token:
@@ -378,10 +378,21 @@ def main():
                         ]
 
                 # --- Identify bad flags (value N or 1) ---
-                bad_flags = [
-                    f for f in rejection_flags
-                    if str(profile_data.get(f, "")).strip().upper() in ["N", "1"]
-                ]
+                bad_flags = []
+
+                for f in rejection_flags:
+                    value = str(profile_data.get(f, "")).strip().upper()
+
+                    if f == "FLAG_ACSP_RECORD":
+                        # 👉 Regla especial:
+                        # SOLO "Y" es malo. "N" es bueno.
+                        if value == "Y":
+                            bad_flags.append(f)
+
+                    else:
+                        # 👉 Regla original para el resto:
+                        if value in ["N", "1"]:
+                            bad_flags.append(f)
 
                 # Si hay FLAGs en N → perfil malo (score = 0)
                 if bad_flags:
@@ -425,8 +436,26 @@ def main():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("🔮 Predict Credit Risk", type="primary",use_container_width=True):
-                yn_fields = [k for k in profile_data.keys() if k.startswith("FLAG_")]
-                bad_flags = [f for f in yn_fields if str(profile_data.get(f, "")).upper() == "N"]
+                rejection_flags = [
+                        "FLAG_HOME_ADDRESS_DOCUMENT","FLAG_RG","FLAG_CPF","FLAG_INCOME_PROOF","FLAG_ACSP_RECORD"
+                        ]
+
+                # --- Identify bad flags (value N or 1) ---
+                bad_flags = []
+
+                for f in rejection_flags:
+                    value = str(profile_data.get(f, "")).strip().upper()
+
+                    if f == "FLAG_ACSP_RECORD":
+                        # 👉 Regla especial:
+                        # SOLO "Y" es malo. "N" es bueno.
+                        if value == "Y":
+                            bad_flags.append(f)
+
+                    else:
+                        # 👉 Regla original para el resto:
+                        if value in ["N", "1"]:
+                            bad_flags.append(f)
 
                 # Si hay FLAGs en N → perfil malo (score = 0)
                 if bad_flags:
