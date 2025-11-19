@@ -1,0 +1,137 @@
+{
+  "PAYMENT_DAY": [1, 5, 10, 15, 20, 25],
+  "APPLICATION_SUBMISSION_TYPE": ["Web", "Carga"],
+
+  "QUANT_ADDITIONAL_CARDS": [1, 2, null],
+  "POSTAL_ADDRESS_TYPE": { 
+                            "1": "Home Address",
+                            "2": "Other"
+                         },
+  "SEX": {"M": "Male", "F": "Female"},
+
+  "MARITAL_STATUS": {
+                        "0": "Not informed",
+                        "1": "Married",
+                        "2": "Single",
+                        "3": "Widowed",
+                        "4": "Divorced",
+                        "5": "Separated",
+                        "6": "Domestic partnership",
+                        "7": "Other"},
+  "EDUCATION_LEVEL": {
+                    "1": "Early childhood education / Preschool",
+                    "2": "Primary education",
+                    "3": "Secondary education",
+                    "4": "Technical or technological / Incomplete undergraduate",
+                    "5": "Completed university or higher education"
+                  },
+   "MATE_EDUCATION_LEVEL": {
+                    "1": "Early childhood education / Preschool",
+                    "2": "Primary education",
+                    "3": "Secondary education",
+                    "4": "Technical or technological / Incomplete undergraduate",
+                    "5": "Completed university or higher education",
+                    "Null": "Not informed"
+                  }                 
+, 
+  "STATE_OF_BIRTH": ["MA","AC","AL","AM","AP","BA","CE","DF","ES","GO","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN",
+                      "RO","RR","RS","SC","SE","SP","TO"],
+  "RESIDENCIAL_STATE": ["MA","AC","AL","AM","AP","BA","CE","DF","ES","GO","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN",
+                      "RO","RR","RS","SC","SE","SP","TO"],
+  "PROFESSIONAL_STATE": ["MA","AC","AL","AM","AP","BA","CE","DF","ES","GO","MG","MS","MT","PA","PB","PE","PI","PR","RJ","RN",
+                      "RO","RR","RS","SC","SE","SP","TO"],
+  "NACIONALITY": {
+                    "0": "Not informed",
+                    "1": "Brasil",
+                    "2": "Foreign"
+                },
+
+  "FLAG_RESIDENCIAL_PHONE": { "Y": "Yes", "N": "No" },
+  "RESIDENCE_TYPE": 
+{   "0": "Parents",
+    "1": "Owned",
+    "2": "Mortgaged",
+    "3": "House of Relatives",
+    "4": "Rented",
+    "5": "Other",
+    "None": "Not informed"
+}
+,
+  "FLAG_MOBILE_PHONE": { "Y": "Yes", "N": "No" },
+  "FLAG_OTHER_CARDS": { "0": "Yes", "1": "No" },
+  "QUANT_BANKING_ACCOUNTS": [0, 1, 2],
+  "QUANT_SPECIAL_BANKING_ACCOUNTS": [0, 1, 2],
+  "COMPANY": { "Y": "Yes", "N": "No" },
+  "FLAG_PROFESSIONAL_PHONE": { "Y": "Yes", "N": "No" },
+
+  "PROFESSION_CODE": {
+                      "1": "1.Early childhood education",
+                      "2": "2.Primary education",
+                      "3": "3.Primary education",
+                      "4": "4.Lower secondary education",
+                      "5": "5.Lower secondary education",
+                      "6": "6.Upper secondary education",
+                      "7": "7.Upper secondary education",
+                      "8": "8.Upper secondary education",
+                      "9": "9.Undergraduate education",
+                      "10": "10.Undergraduate education",
+                      "11": "11.Undergraduate education",
+                      "12": "12.Graduate education",
+                      "13": "13.Graduate education",
+                      "14": "14.Graduate education",
+                      "15": "15.Postgraduate education",
+                      "16": "16.Postgraduate education",
+                      "17": "17.Postgraduate education",
+                      "18": "18.Doctorate",
+                      "NULL": "Not informed"
+                  },
+  "OCCUPATION_TYPE": {
+
+                          "1": "Self-employed",
+                          "2": "Private sector employee",
+                          "3": "Public sector employee",
+                          "4": "Retired / Pensioner",
+                          "5": "Student",
+                          "NULL": "Not informed"
+                      }
+,
+  "MATE_PROFESSION_CODE": {
+                      "1": "1.Early childhood education",
+                      "2": "2.Primary education",
+                      "3": "3.Primary education",
+                      "4": "4.Lower secondary education",
+                      "5": "5.Lower secondary education",
+                      "6": "6.Upper secondary education",
+                      "7": "7.Upper secondary education",
+                      "8": "8.Upper secondary education",
+                      "9": "9.Undergraduate education",
+                      "10": "10.Undergraduate education",
+                      "11": "11.Undergraduate education",
+                      "12": "12.Graduate education",
+                      "13": "13.Graduate education",
+                      "14": "14.Graduate education",
+                      "15": "15.Postgraduate education",
+                      "16": "16.Postgraduate education",
+                      "17": "17.Postgraduate education",
+                      "18": "18.Doctorate",
+                      "NULL": "Not informed"
+                  },
+  
+  "PRODUCT": {
+                "1": "Loan / Credit product",
+                "2": "Credit card",
+                "7": "Other financial product"
+            }
+,
+  
+  "FLAG_VISA": { "0": "Yes", "1": "No" },
+  "FLAG_MASTERCARD": { "0": "Yes", "1": "No" },
+  "FLAG_DINERS": { "0": "Yes", "1": "No" },
+  "FLAG_AMERICAN_EXPRESS": { "0": "Yes", "1": "No" },
+  "FLAG_EMAIL": { "0": "Yes", "1": "No" },
+  "FLAG_HOME_ADDRESS_DOCUMENT": { "0": "Yes", "1": "No" },
+  "FLAG_RG" : { "0": "Yes", "1": "No" },
+  "FLAG_CPF": { "0": "Yes", "1": "No" },
+  "FLAG_INCOME_PROOF": { "0": "Yes", "1": "No" },
+  "FLAG_ACSP_RECORD": { "Y": "Yes", "N": "No" }
+}

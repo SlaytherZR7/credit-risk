@@ -1,0 +1,13 @@
+{
+    "best_params": {
+        "model__xgb__max_depth": 5,
+        "model__xgb__learning_rate": 0.03,
+        "model__lgbm__num_leaves": 127,
+        "model__lgbm__learning_rate": 0.02,
+        "model__final_estimator__max_depth": 2,
+        "model__final_estimator__learning_rate": 0.05
+    },
+    "best_threshold": 0.24055959781010947,
+    "best_auc": 0.6405832173482193,
+    "best_f1": 0.452647717465309
+}

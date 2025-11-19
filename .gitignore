@@ -1,0 +1,108 @@
+# Archivos del entorno
+.env
+.env.local
+.env.*.local
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Notebook outputs pesados (no versionar artefactos de entrenamiento)
+notebooks/catboost_info/
+**/events.out.tfevents
+
+# Data files (agregar excepciones específicas si es necesario)
+data/raw/*
+data/interim/*
+data/processed/*
+data/external/*
+!data/raw/.gitkeep
+!data/interim/.gitkeep
+!data/processed/.gitkeep
+!data/external/.gitkeep
+
+# Models
+models/*.pkl
+models/*.joblib
+models/*.h5
+models/*.pb
+models/*.json
+!models/.gitkeep
+
+# Logs
+logs/
+*.log
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Docker
+.dockerignore
+
+# Reports
+reports/*.html
+reports/*.pdf
+!reports/.gitkeep
+
+# API keys y configuraciones sensibles
+config/secrets.json
+*.key
+*.pem
+
+# Installers (no subir ejecutables)
+*.exe
+*.msi
+*.dmg
+
+# Temporary files
+*.temp
+*.bak
+
+# Streamlit cache
+.streamlit/
+
+# Large data files (mantener solo muestras pequeñas)
+data/raw/*.csv
+data/raw/*.txt
+!data/raw/sample_*
