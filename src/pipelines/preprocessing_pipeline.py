@@ -45,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 def run_preprocessing(
     data_path="data/interim/train_clean_headers.parquet",
-    target_col="label",
+    target_col="TARGET_LABEL_BAD=1",
     processed_dir="data/processed",
     model_dir="models",
 ):
