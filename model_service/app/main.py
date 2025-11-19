@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from redis import Redis
 from rq import Queue
 from rq.job import Job
-from app.model.pipeline import init_model
+from model_service.app.model.pipeline_sly import init_model
 from app.utils.schema import PredictionRequest, BatchPredictionRequest
 
 app = FastAPI(title="ML Model Service", version="1.0")
