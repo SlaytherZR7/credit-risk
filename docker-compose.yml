@@ -48,8 +48,8 @@ services:
 
   ml_model:
     build:
-      context: ./model_service
-      dockerfile: Dockerfile.api
+      context: .
+      dockerfile: model_service/Dockerfile.api
     container_name: ml_model_service
     depends_on:
       - redis
@@ -62,8 +62,8 @@ services:
 
   model_worker:
     build:
-      context: ./model_service
-      dockerfile: Dockerfile.worker
+      context: .
+      dockerfile: model_service/Dockerfile.worker
     container_name: ml_model_worker
     depends_on:
       - redis
