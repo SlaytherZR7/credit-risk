@@ -228,7 +228,6 @@ def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any
         st.error(f"Batch request failed: {e}")
         return None
 
-def simulate_credit_decisions(profiles_data: List[Dict[str, Any]], decision_threshold: float, profit_margin: float):
     """Simulate credit decision profitability."""
     try:
         response = requests.post(
@@ -276,7 +275,6 @@ def display_risk_result(prediction: Dict[str, Any]):
     # --- Extract values ---
     risk_score = float(prediction.get("risk_score", 0))
     confidence = prediction.get("confidence", 0)
-    recommendation = prediction.get("recommendation", "Review")
 
     # --- Determine label and color ---
     if risk_score >= 0.7:
