@@ -361,9 +361,9 @@ def main():
 
     # Sidebar Navigation
     st.sidebar.title("📊 Navigation")
-    page = st.sidebar.selectbox(
+    page = st.sidebar.radio(
         "Choose a section:",
-        ["🔍 Individual Analysis", "📊 Batch Analysis", "🎯 Decision Simulation", "📈 Metrics Dashboard"]
+        ["🔍 Individual Analysis", "📊 Batch Analysis"]
     )
 
     # --- INDIVIDUAL ANALYSIS ---
@@ -486,44 +486,6 @@ def main():
                         "recommendation": recommendation
                     }
                     display_risk_result(result)
-
-
-    # --- DECISION SIMULATION ---
-    elif page == "🎯 Decision Simulation":
-        st.subheader("Credit Decision Simulation")
-        decision_threshold = st.slider("Decision Threshold", 0.0, 1.0, 0.5, 0.01)
-        profit_margin = st.slider("Profit Margin", 0.0, 0.5, 0.05, 0.01)
-
-        if st.button("🚀 Run Simulation"):
-            import numpy as np
-            np.random.seed(42)
-            simulated_profiles = [
-                {
-                    "income": float(np.random.normal(50000, 15000)),
-                    "age": int(np.random.randint(18, 80)),
-                    "credit_amount": float(np.random.uniform(1000, 50000)),
-                    "employment_length": int(np.random.randint(0, 30)),
-                    "debt_ratio": float(np.random.uniform(0, 1))
-                } for _ in range(300)
-            ]
-            with st.spinner("Running simulation..."):
-                result = simulate_credit_decisions(simulated_profiles, decision_threshold, profit_margin)
-            if result:
-                st.success("✅ Simulation completed.")
-                st.json(result)
-
-    # --- METRICS DASHBOARD ---
-    elif page == "📈 Metrics Dashboard":
-        st.subheader("System and Model Metrics")
-        try:
-            response = requests.get(f"{API_BASE_URL}/model/info")
-            if response.status_code == 200:
-                model_info = response.json()
-                st.json(model_info)
-            else:
-                st.warning("Unable to fetch model info.")
-        except:
-            st.warning("API not responding.")
 
 if __name__ == "__main__":
     main()
