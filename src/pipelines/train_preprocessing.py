@@ -89,8 +89,10 @@ def run_preprocessing(
     # --------------------------------------------------------
     # 4️⃣ Guardar pipeline entrenado
     # --------------------------------------------------------
-    os.makedirs(model_dir, exist_ok=True)
-    pipeline_path = os.path.join(model_dir, "preprocessing_pipeline.joblib")
+    ARTIFACTS_DIR = "model_service/artifacts"
+    os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+
+    pipeline_path = os.path.join(ARTIFACTS_DIR, "preprocessing_pipeline.joblib")
 
     joblib.dump(pipeline, pipeline_path)
     logger.info(f"💾 Pipeline guardado en: {pipeline_path}")

@@ -2,7 +2,7 @@ import os
 import json
 import pandas as pd
 import numpy as np
-import cloudpickle
+import joblib
 
 # ======================================================================
 # ⭐ CONFIGURACIÓN DE RUTAS (dentro del contenedor Docker)
@@ -40,8 +40,7 @@ def init_model():
         raise FileNotFoundError(f"❌ Preprocessor not found: {PREPROCESSOR_PATH}")
 
     print("🔹 Loading preprocessing pipeline...")
-    with open(PREPROCESSOR_PATH, "rb") as f:
-        _preprocessor = cloudpickle.load(f)
+    _preprocessor = joblib.load(PREPROCESSOR_PATH)
 
     # -----------------------
     # Modelo LightGBM
@@ -50,8 +49,7 @@ def init_model():
         raise FileNotFoundError(f"❌ Model file not found: {MODEL_PATH}")
 
     print("🔹 Loading LightGBM model...")
-    with open(MODEL_PATH, "rb") as f:
-        _model = cloudpickle.load(f)
+    _model = joblib.load(MODEL_PATH)
 
     # -----------------------
     # Metadata (threshold)
