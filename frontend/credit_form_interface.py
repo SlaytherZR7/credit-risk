@@ -169,8 +169,8 @@ def create_credit_application_form():
                     label = field.replace("_", " ").title()
                     default_val = uploaded_data.get(field, "")
 
-                    # --- Render fields ---
-                    form_data[field] = st.text_input(label, value=str(default_val))
+                    # --- Render fields (always disabled in batch mode) ---
+                    form_data[field] = st.text_input(label, value=str(default_val), disabled=True)
 
                     # --- Regla de negocio: Edad ---
                     if field == "AGE":
