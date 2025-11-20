@@ -228,19 +228,6 @@ def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any
         st.error(f"Batch request failed: {e}")
         return None
 
-    """Simulate credit decision profitability."""
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/simulate",
-            json={"profiles": profiles_data, "decision_threshold": decision_threshold, "profit_margin": profit_margin},
-            timeout=30
-        )
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        st.error(f"Simulation failed: {e}")
-        return None
-
 def build_model_payload_from_form(form_data: dict) -> dict:
     payload = {}
 
