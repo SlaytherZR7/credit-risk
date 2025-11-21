@@ -39,7 +39,7 @@ def load_brazil_cities() -> Optional[pd.DataFrame]:
                 if "codigo_uf" in df.columns and "nome" in df.columns:
                     df["STATE"] = df["codigo_uf"].map(UF_MAP)
                     df = df.rename(columns={"nome": "CITY"})
-                    df = df.dropna(subset=["STATE"])  # safety
+                    df = df.dropna(subset=["STATE"])
                     return df[["STATE", "CITY"]]
         except Exception:
             continue
@@ -134,7 +134,6 @@ def create_credit_application_form():
         except Exception as e:
             st.error(f"❌ Error loading file: {e}")
 
-    # --- FORM STRUCTURE ---
     sections = {
         'Personal Information': ["AGE","SEX", "MARITAL_STATUS", "QUANT_DEPENDANTS", "EDUCATION_LEVEL",
                                  "STATE_OF_BIRTH", "CITY_OF_BIRTH", "NACIONALITY"],
@@ -159,7 +158,7 @@ def create_credit_application_form():
     tabs = st.tabs(list(sections.keys()))
     form_data = {}
 
-    # --- FIELDS ---
+
     for i, (section, fields) in enumerate(sections.items()):
         with tabs[i]:
             col1, col2 = st.columns(2)
@@ -168,11 +167,7 @@ def create_credit_application_form():
                 with col:
                     label = field.replace("_", " ").title()
                     default_val = uploaded_data.get(field, "")
-
-                    # --- Render fields (always disabled in batch mode) ---
                     form_data[field] = st.text_input(label, value=str(default_val), disabled=True)
-
-                    # --- Regla de negocio: Edad ---
                     if field == "AGE":
                         try:
                             age = float(form_data.get("AGE", 0))
@@ -189,8 +184,6 @@ def create_credit_application_form():
                                 st.stop()
                         except ValueError:
                             st.warning("⚠️ Invalid age. Please enter a valid number.")
-
-                    # --- Regla de negocio: Campos vacíos ---
                     value = str(form_data.get(field, "")).strip()
                     if value in ["", "None", "NaN", "nan"]:
                         st.markdown(
@@ -210,8 +203,6 @@ def create_credit_application_form():
 def create_credit_application_form_m(custom_labels, field_options):
     st.header("📝 Credit Application Form (Manual Input)")
     form_data = {}
-
-    # 🧩 Form sections
     sections = {
         'Personal Information': ["SEX", "MARITAL_STATUS", "QUANT_DEPENDANTS", "EDUCATION_LEVEL",
                                  "STATE_OF_BIRTH", "CITY_OF_BIRTH", "NACIONALITY", "AGE"],
@@ -233,7 +224,6 @@ def create_credit_application_form_m(custom_labels, field_options):
         'Application Details': ["PAYMENT_DAY", "APPLICATION_SUBMISSION_TYPE", "POSTAL_ADDRESS_TYPE", "PRODUCT"],
     }
 
-    # 🧮 Numeric fields
     numeric_fields = [
         "AGE", "QUANT_DEPENDANTS", "MONTHS_IN_RESIDENCE", "RESIDENCIAL_PHONE_AREA_CODE",
         "MONTHS_IN_THE_JOB", "PROFESSIONAL_PHONE_AREA_CODE", "PERSONAL_MONTHLY_INCOME",
@@ -241,7 +231,6 @@ def create_credit_application_form_m(custom_labels, field_options):
         "PERSONAL_ASSETS_VALUE", "QUANT_CARS", "QUANT_ADDITIONAL_CARDS", "PAYMENT_DAY"
     ]
 
-    # 🗂️ Tabs for sections
     tabs = st.tabs(list(sections.keys()))
 
     cities_df = load_brazil_cities()
@@ -254,12 +243,11 @@ def create_credit_application_form_m(custom_labels, field_options):
                 with col:
                     label = custom_labels.get(field, field.replace("_", " ").title())
 
-                    # --- ① Special 3-digit fields (ZIP / DDD) ---
                     if field in ["RESIDENCIAL_PHONE_AREA_CODE", "PROFESSIONAL_PHONE_AREA_CODE",
                                 "RESIDENCIAL_ZIP_3", "PROFESSIONAL_ZIP_3"]:
                         form_data[field] = st.text_input(label, key=field)
                         value = str(form_data.get(field, "")).strip()
-                        if value:  # Only validate if not empty
+                        if value:  
                             if not value.isdigit():
                                 st.markdown(
                                     f"<div style='color:#b58900; font-size:0.9em; margin-top:2px;'>⚠️ {label} must contain digits only.</div>",
@@ -271,15 +259,12 @@ def create_credit_application_form_m(custom_labels, field_options):
                                     unsafe_allow_html=True
                                 )
 
-                    # --- ② State dropdowns ---
                     elif field in ["STATE_OF_BIRTH", "RESIDENCIAL_STATE", "PROFESSIONAL_STATE"]:
                         if cities_df is not None:
                             state_siglas = sorted(cities_df["STATE"].unique())
                             form_data[field] = st.selectbox(label, state_siglas, key=field)
                         else:
                             form_data[field] = st.selectbox(label, UF_SIGLAS, key=field)
-
-                    # --- ③ City dropdowns (dependent on selected state) ---
                     elif field in ["CITY_OF_BIRTH", "RESIDENCIAL_CITY", "PROFESSIONAL_CITY"]:
                         state_links = {
                             "CITY_OF_BIRTH": "STATE_OF_BIRTH",
@@ -287,7 +272,7 @@ def create_credit_application_form_m(custom_labels, field_options):
                             "PROFESSIONAL_CITY": "PROFESSIONAL_STATE",
                         }
                         state_field = state_links.get(field)
-                        # Avoid passing None as a key to session_state.get and handle missing state_field gracefully
+  
                         selected_state = st.session_state.get(state_field) if state_field is not None else None
                         if selected_state:
                             if cities_df is not None:
@@ -302,7 +287,7 @@ def create_credit_application_form_m(custom_labels, field_options):
                             st.info(f"👆 Please select the corresponding state first ({hint_field}).")
                             form_data[field] = ""
 
-                    # --- ④ Fields with predefined options (from field_options.json) ---
+
                     elif field in field_options:
                         options = field_options[field]
                         if isinstance(options, dict):
@@ -313,7 +298,7 @@ def create_credit_application_form_m(custom_labels, field_options):
                         else:
                             form_data[field] = st.selectbox(label, options, key=field)
 
-                    # --- ⑤ Numeric fields ---
+
                     elif field in ["AGE", "QUANT_DEPENDANTS", "MONTHS_IN_RESIDENCE",
                                 "MONTHS_IN_THE_JOB", "PERSONAL_MONTHLY_INCOME",
                                 "OTHER_INCOMES", "QUANT_BANKING_ACCOUNTS",
@@ -321,18 +306,15 @@ def create_credit_application_form_m(custom_labels, field_options):
                                 "QUANT_CARS", "QUANT_ADDITIONAL_CARDS", "PAYMENT_DAY"]:
                         form_data[field] = st.number_input(label, min_value=0, step=1, key=field)
 
-                    # --- ⑥ Generic text fields ---
                     else:
                         form_data[field] = st.text_input(label, key=field)
 
-                    # --- ⑦ Business rule: AGE validation ---
                     if field == "AGE":
                         age = form_data.get("AGE", 0)
                         if isinstance(age, (int, float)) and (age < 18 or age > 80):
                             st.error("🚫 Invalid age range. Age must be between 18 and 80 years.")
                             st.stop()
 
-                    # --- ⑧ Empty field check ---
                     value = str(form_data.get(field, "")).strip()
                     if value in ["", "None", "NaN"]:
                         st.markdown(
@@ -341,8 +323,6 @@ def create_credit_application_form_m(custom_labels, field_options):
                             unsafe_allow_html=True
                         )
 
-
-    # Resumen de campos faltantes
     missing = [f for f, v in form_data.items() if str(v).strip() in ["", "None", "NaN"]]
     st.markdown("---")
     if missing:
