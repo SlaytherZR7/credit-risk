@@ -13,6 +13,9 @@ def predict_one_task(features: dict):
     return predict_single(features)
 
 def predict_batch_task(batch: list):
+    print("\n📌 WORKER RECEIVED BATCH:")
+    for i, item in enumerate(batch):
+        print(f" - item {i}: {type(item)} → {item}")
     return predict_batch(batch)
 
 if __name__ == "__main__":

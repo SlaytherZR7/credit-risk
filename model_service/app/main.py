@@ -40,8 +40,9 @@ def enqueue_prediction(request: PredictionRequest):
 @app.post("/predict-batch")
 def enqueue_batch_prediction(request: BatchPredictionRequest):
     print("\n📥 MODEL SERVICE /predict-batch recibió:")
-    print(request.features)     # ← imprime la lista cruda
-
+    print(request.features) 
+    print("TYPE:", type(request.features))
+    print("CONTENTS:", request.features)
     try:
         job = queue.enqueue("app.worker.predict_batch_task", request.features)
         return {"job_id": job.get_id(), "status": job.get_status()}
