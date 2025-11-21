@@ -174,8 +174,8 @@ def check_api_health() -> bool:
 
 def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
     """Send individual prediction to API."""
-    st.subheader("JSON enviado al backend (individual):")
-    st.code(json.dumps({"features": [profile_data]}, indent=2))
+    # st.subheader("JSON enviado al backend (individual):")
+    # st.code(json.dumps({"features": [profile_data]}, indent=2))
     token = st.session_state.get("token")  # ⬅️ Get token
 
     if not token:
@@ -202,8 +202,8 @@ def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
 
 def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Send batch predictions to API."""
-    st.subheader("JSON enviado al backend (batch):")
-    st.code(json.dumps({"features": profiles_data}, indent=2))
+    # st.subheader("JSON enviado al backend (batch):")
+    # st.code(json.dumps({"features": profiles_data}, indent=2))
     token = st.session_state.get("token")  # ⬅️ recuperamos el token
 
     if not token:
@@ -226,20 +226,6 @@ def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any
         return response.json()
     except Exception as e:
         st.error(f"Batch request failed: {e}")
-        return None
-
-def simulate_credit_decisions(profiles_data: List[Dict[str, Any]], decision_threshold: float, profit_margin: float):
-    """Simulate credit decision profitability."""
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/simulate",
-            json={"profiles": profiles_data, "decision_threshold": decision_threshold, "profit_margin": profit_margin},
-            timeout=30
-        )
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        st.error(f"Simulation failed: {e}")
         return None
 
 def build_model_payload_from_form(form_data: dict) -> dict:
@@ -276,7 +262,6 @@ def display_risk_result(prediction: Dict[str, Any]):
     # --- Extract values ---
     risk_score = float(prediction.get("risk_score", 0))
     confidence = prediction.get("confidence", 0)
-    recommendation = prediction.get("recommendation", "Review")
 
     # --- Determine label and color ---
     if risk_score >= 0.7:
@@ -361,9 +346,9 @@ def main():
 
     # Sidebar Navigation
     st.sidebar.title("📊 Navigation")
-    page = st.sidebar.selectbox(
+    page = st.sidebar.radio(
         "Choose a section:",
-        ["🔍 Individual Analysis", "📊 Batch Analysis", "🎯 Decision Simulation", "📈 Metrics Dashboard"]
+        ["🔍 Individual Analysis", "📊 Batch Analysis"]
     )
 
     # --- INDIVIDUAL ANALYSIS ---
@@ -378,10 +363,21 @@ def main():
                         ]
 
                 # --- Identify bad flags (value N or 1) ---
-                bad_flags = [
-                    f for f in rejection_flags
-                    if str(profile_data.get(f, "")).strip().upper() in ["N", "1"]
-                ]
+                bad_flags = []
+
+                for f in rejection_flags:
+                    value = str(profile_data.get(f, "")).strip().upper()
+
+                    if f == "FLAG_ACSP_RECORD":
+                        # 👉 Regla especial:
+                        # SOLO "Y" es malo. "N" es bueno.
+                        if value == "Y":
+                            bad_flags.append(f)
+
+                    else:
+                        # 👉 Regla original para el resto:
+                        if value in ["N", "1"]:
+                            bad_flags.append(f)
 
                 # Si hay FLAGs en N → perfil malo (score = 0)
                 if bad_flags:
@@ -425,8 +421,26 @@ def main():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
             if st.button("🔮 Predict Credit Risk", type="primary",use_container_width=True):
-                yn_fields = [k for k in profile_data.keys() if k.startswith("FLAG_")]
-                bad_flags = [f for f in yn_fields if str(profile_data.get(f, "")).upper() == "N"]
+                rejection_flags = [
+                        "FLAG_HOME_ADDRESS_DOCUMENT","FLAG_RG","FLAG_CPF","FLAG_INCOME_PROOF","FLAG_ACSP_RECORD"
+                        ]
+
+                # --- Identify bad flags (value N or 1) ---
+                bad_flags = []
+
+                for f in rejection_flags:
+                    value = str(profile_data.get(f, "")).strip().upper()
+
+                    if f == "FLAG_ACSP_RECORD":
+                        # 👉 Regla especial:
+                        # SOLO "Y" es malo. "N" es bueno.
+                        if value == "Y":
+                            bad_flags.append(f)
+
+                    else:
+                        # 👉 Regla original para el resto:
+                        if value in ["N", "1"]:
+                            bad_flags.append(f)
 
                 # Si hay FLAGs en N → perfil malo (score = 0)
                 if bad_flags:
@@ -457,44 +471,6 @@ def main():
                         "recommendation": recommendation
                     }
                     display_risk_result(result)
-
-
-    # --- DECISION SIMULATION ---
-    elif page == "🎯 Decision Simulation":
-        st.subheader("Credit Decision Simulation")
-        decision_threshold = st.slider("Decision Threshold", 0.0, 1.0, 0.5, 0.01)
-        profit_margin = st.slider("Profit Margin", 0.0, 0.5, 0.05, 0.01)
-
-        if st.button("🚀 Run Simulation"):
-            import numpy as np
-            np.random.seed(42)
-            simulated_profiles = [
-                {
-                    "income": float(np.random.normal(50000, 15000)),
-                    "age": int(np.random.randint(18, 80)),
-                    "credit_amount": float(np.random.uniform(1000, 50000)),
-                    "employment_length": int(np.random.randint(0, 30)),
-                    "debt_ratio": float(np.random.uniform(0, 1))
-                } for _ in range(300)
-            ]
-            with st.spinner("Running simulation..."):
-                result = simulate_credit_decisions(simulated_profiles, decision_threshold, profit_margin)
-            if result:
-                st.success("✅ Simulation completed.")
-                st.json(result)
-
-    # --- METRICS DASHBOARD ---
-    elif page == "📈 Metrics Dashboard":
-        st.subheader("System and Model Metrics")
-        try:
-            response = requests.get(f"{API_BASE_URL}/model/info")
-            if response.status_code == 200:
-                model_info = response.json()
-                st.json(model_info)
-            else:
-                st.warning("Unable to fetch model info.")
-        except:
-            st.warning("API not responding.")
 
 if __name__ == "__main__":
     main()
