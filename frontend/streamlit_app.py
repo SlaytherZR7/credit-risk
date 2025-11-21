@@ -204,6 +204,8 @@ def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any
     """Send batch predictions to API."""
     # st.subheader("JSON enviado al backend (batch):")
     # st.code(json.dumps({"features": profiles_data}, indent=2))
+    print("Sending batch profiles data to API:")
+    print(profiles_data)
     token = st.session_state.get("token")  # ⬅️ recuperamos el token
 
     if not token:
@@ -222,6 +224,9 @@ def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any
             headers=headers,
             timeout=30
         )
+        print("Response from batch prediction:")
+        print(response.status_code)
+        print(response.text)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -454,8 +459,13 @@ def main():
                     # Caso normal: consultar modelo
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
-                        result = predict_batch_profiles([model_payload])
+                        result = predict_batch_profiles([model_payload]) # {"job_id":"a8463779-94b8-49ee-8cd8-8fcfd8d00ca5","status":"queued"}
                     if result:
+                        # TODO: Llamar al result 
+                        # {API_BASE_URL}/predictions/result/:job_id: GET
+                        # Retorna esto 
+                        # "status": job.get_status(),
+                        # "result": job.result,
                         risk_score = result.get("risk_score", 0.5)  # valor entre 0 y 1
                         recommendation = result.get("recommendation", "Review")
                     else:
