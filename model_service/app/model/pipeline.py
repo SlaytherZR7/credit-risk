@@ -3,6 +3,7 @@ import json
 import pandas as pd
 import numpy as np
 import joblib
+import time
 
 # ======================================================================
 # ⭐ CONFIGURACIÓN DE RUTAS (dentro del contenedor Docker)
@@ -99,12 +100,20 @@ def predict_single(features: dict):
 # ======================================================================
 
 def predict_batch(batch: list):
+    start_time = time.time()
+    print(f"⏰ [0s] Iniciando predict_batch con {len(batch)} registros")
+    
     preprocessor, model = init_model()
+    print(f"⏰ [{time.time()-start_time:.1f}s] Modelo cargado")
 
     df = pd.DataFrame(batch)
+    print(f"⏰ [{time.time()-start_time:.1f}s] DataFrame creado: {df.shape}")
+    
     X_processed = preprocessor.transform(df)
+    print(f"⏰ [{time.time()-start_time:.1f}s] Transformación completa: {X_processed.shape}")
 
     probas = model.predict_proba(X_processed)[:, 1]
+    print(f"⏰ [{time.time()-start_time:.1f}s] Predicción completa")
 
     results = []
     for proba in probas:
@@ -116,5 +125,6 @@ def predict_batch(batch: list):
             "prediction": pred,
             "threshold_used": _threshold
         })
-
+    
+    print(f"⏰ [{time.time()-start_time:.1f}s] Resultados formateados. Total: {len(results)}")
     return results
