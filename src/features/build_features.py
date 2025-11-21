@@ -49,7 +49,7 @@ class BaseCleaner(BaseEstimator, TransformerMixin):
         X = X.copy()
 
         EXCEL_ERRORS = ['#DIV/0!', '#N/A', '#NAME?', '#NULL!', '#NUM!',
-                        '#REF!', '#VALUE!', ' ']
+                        '#REF!', '#VALUE!', ' ', '']
 
         # Limpieza numérica
         all_numeric_or_code_cols = self.income_cols + self.code_cols_to_clean
@@ -61,7 +61,10 @@ class BaseCleaner(BaseEstimator, TransformerMixin):
         # Limpieza categórica
         for col in self.state_cols_to_clean:
             if col in X.columns:
-                X[col] = X[col].replace([' ', ''], np.nan).str.upper()
+                # First convert to string, replace empty values, then uppercase while preserving NaN
+                X[col] = X[col].astype(str).str.strip()
+                X[col] = X[col].str.upper()
+                X[col] = X[col].replace(['', 'nan', 'None'], np.nan)
 
         # Ingeniería de features
         card_flags = ['FLAG_VISA', 'FLAG_MASTERCARD',
@@ -183,7 +186,7 @@ def build_preprocessing_pipeline():
     ])
 
     categorical_pipe = Pipeline([
-        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('imputer', SimpleImputer(strategy='most_frequent', fill_value='MISSING')),
         ('encoder', OneHotEncoder(handle_unknown='ignore', sparse_output=False))
     ])
 
@@ -195,7 +198,8 @@ def build_preprocessing_pipeline():
             ('categorical_pipe', categorical_pipe, OHE_FEATS),
             ('code_pipe', code_pipe, CODE_FEATS),
         ],
-        remainder='passthrough'
+        remainder='passthrough',
+        n_jobs=1
     )
 
     return Pipeline([
