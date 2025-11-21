@@ -117,9 +117,6 @@ def signup_ui(page_prefix):
             except Exception as e:
                     st.error(f"🚨 Error connecting to backend: {e}")
 
-# ---------------------------------
-# NAVEGACIÓN Y CONTROL DE SESIÓN
-# ---------------------------------
 if "token" not in st.session_state:
 
     page = st.sidebar.radio("Navigation", ["Login", "Sign up"])
@@ -130,10 +127,6 @@ if "token" not in st.session_state:
         signup_ui(page)
     st.stop() 
 
-
-# ---------------------------------
-# STYLES    
-# ---------------------------------
 st.markdown("""
 <style>
     .main-header {
@@ -160,9 +153,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------------------------
-# HELPER FUNCTIONS
-# ---------------------------------
 def check_api_health() -> bool:
     """Check API availability."""
     try:
@@ -366,7 +356,7 @@ def main():
         st.error("⚠️ API not available. Please run: `uvicorn api.main:app --reload`")
         st.stop()
 
-    # Sidebar Navigation
+
     st.sidebar.title("📊 Navigation")
     page = st.sidebar.radio(
         "Choose a section:",
