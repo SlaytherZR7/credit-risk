@@ -5,6 +5,7 @@ import os
 import json
 import streamlit as st
 import requests
+import time
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -333,6 +334,46 @@ def display_risk_result(prediction: Dict[str, Any]):
     </div>
     """, unsafe_allow_html=True)
 
+def fetch_job_result(job_id: str, max_attempts=20, sleep_time=1.0):
+    """
+    Poll the model service via API Gateway until job is finished.
+    """
+
+    token = st.session_state.get("token")
+    if not token:
+        st.error("❌ You must log in before fetching predictions.")
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {token}".strip(),
+        "Content-Type": "application/json"
+    }
+
+    url = f"{API_BASE_URL}/predictions/result/{job_id}"
+
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+
+            data = response.json()
+
+            status = data.get("status")
+            result = data.get("result")
+
+            # The job is ready
+            if status in ["finished", "failed"]:
+                return data
+
+        except Exception as e:
+            st.error(f"Error fetching job result: {e}")
+            return None
+
+        time.sleep(sleep_time)
+
+    st.error("⏳ Timeout waiting for batch result.")
+    return None
+
 
 # ---------------------------------
 # MAIN APP
@@ -393,7 +434,7 @@ def main():
                     risk_score = 1.0
                     recommendation = "Reject Application"
                 else:
-                    # Caso normal: consultar modelo
+                    # Caso normal: consultar modelo               
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
                         st.write(model_payload)
@@ -459,20 +500,27 @@ def main():
                     # Caso normal: consultar modelo
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
-                        result = predict_batch_profiles([model_payload]) # {"job_id":"a8463779-94b8-49ee-8cd8-8fcfd8d00ca5","status":"queued"}
-                    if result:
-                        # TODO: Llamar al result 
-                        # {API_BASE_URL}/predictions/result/:job_id: GET
-                        # Retorna esto 
-                        # "status": job.get_status(),
-                        # "result": job.result,
-                        risk_score = result.get("risk_score", 0.5)  # valor entre 0 y 1
-                        recommendation = result.get("recommendation", "Review")
-                    else:
-                        st.error("Failed to get prediction.")
-                        risk_score = None
+                        job_response  = predict_batch_profiles([model_payload]) 
+                        st.write("📦 Response from batch enqueue:")
+                        st.json(job_response)# {"job_id":"a8463779-94b8-49ee-8cd8-8fcfd8d00ca5","status":"queued"}
 
-                
+                    if job_response and "job_id" in job_response:
+                        job_id = job_response["job_id"]
+                        st.info(f"Job submitted with ID: {job_id}")
+                    # ---- ESPERAR RESULTADO ----
+                    with st.spinner("Waiting for model prediction..."):
+                        final_result = fetch_job_result(job_id)
+                        st.write("📄 Final job response:")
+                        st.json(final_result)
+
+                    if final_result and final_result.get("status") == "finished":
+                        output = final_result.get("result", {})
+                        risk_score = output.get("risk_score")
+                        recommendation = output.get("recommendation")
+                    else:
+                        st.error("Prediction failed or timed out.")
+                        risk_score = None
+             
             # Mostrar resultado con display_risk_result
                 if risk_score is not None:
                     result = {
