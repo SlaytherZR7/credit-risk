@@ -6,7 +6,6 @@ from app.model.pipeline import predict_single, predict_batch, init_model
 redis_conn = Redis(host="redis", port=6379)
 queue = Queue("model_queue", connection=redis_conn)
 
-# Cargar modelo + preprocessor una vez
 init_model()
 
 def predict_one_task(features: dict):
