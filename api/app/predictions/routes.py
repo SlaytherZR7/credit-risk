@@ -9,10 +9,10 @@ MODEL_SERVICE_URL = "http://ml_model:8002"
 
 @router.post("/predict-one")
 async def predict_one(
-    request: Request,                 # ← Recibe Request, no dict
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    _: User = Depends(get_current_user),
 ):
-    payload = await request.json()    # ← JSON crudo sin validación
+    payload = await request.json()
 
     async with httpx.AsyncClient() as client:
         try:
@@ -32,10 +32,10 @@ async def predict_one(
     return response.json()
 @router.post("/predict-batch")
 async def predict_batch(
-    request: Request,                 # ← igual: Request en lugar de dict
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    _: User = Depends(get_current_user),
 ):
-    payload = await request.json()    # ← JSON crudo
+    payload = await request.json()
 
     async with httpx.AsyncClient() as client:
         try:
@@ -57,7 +57,7 @@ async def predict_batch(
 @router.get("/result/{job_id}")
 async def get_result(
     job_id: str,
-    current_user: User = Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
     async with httpx.AsyncClient() as client:
         try:

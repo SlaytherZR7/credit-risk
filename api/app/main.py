@@ -14,7 +14,6 @@ app = FastAPI(
     description="API to predict credit risk using machine learning models.",
 )
 
-# CORS Settings
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -23,7 +22,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
 app.include_router(auth_router, prefix=settings.API_V1_STR)
 app.include_router(predictions_router, prefix=settings.API_V1_STR)
 
