@@ -6,10 +6,6 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.impute import SimpleImputer
 
-# ============================================================
-# 🧹 1️⃣ BaseCleaner: Limpieza, Feature Engineering, Drops
-# ============================================================
-
 class BaseCleaner(BaseEstimator, TransformerMixin):
     """
     Limpieza general, Ingeniería de Features (FE) y Eliminación de Columnas Ruidosas.
@@ -51,22 +47,18 @@ class BaseCleaner(BaseEstimator, TransformerMixin):
         EXCEL_ERRORS = ['#DIV/0!', '#N/A', '#NAME?', '#NULL!', '#NUM!',
                         '#REF!', '#VALUE!', ' ', '']
 
-        # Limpieza numérica
         all_numeric_or_code_cols = self.income_cols + self.code_cols_to_clean
         for col in all_numeric_or_code_cols:
             if col in X.columns:
                 X[col] = X[col].replace(EXCEL_ERRORS, np.nan)
                 X[col] = pd.to_numeric(X[col], errors='coerce')
 
-        # Limpieza categórica
         for col in self.state_cols_to_clean:
             if col in X.columns:
-                # First convert to string, replace empty values, then uppercase while preserving NaN
                 X[col] = X[col].astype(str).str.strip()
                 X[col] = X[col].str.upper()
                 X[col] = X[col].replace(['', 'nan', 'None'], np.nan)
 
-        # Ingeniería de features
         card_flags = ['FLAG_VISA', 'FLAG_MASTERCARD',
                       'FLAG_DINERS', 'FLAG_AMERICAN_EXPRESS',
                       'FLAG_OTHER_CARDS']
@@ -89,13 +81,11 @@ class BaseCleaner(BaseEstimator, TransformerMixin):
                 X['PROFESSIONAL_STATE'].fillna('')
             ).astype(int)
 
-        # Outliers dependants
         if 'QUANT_DEPENDANTS' in X.columns:
             median_dependants = X.loc[X['QUANT_DEPENDANTS'] <= 15,
                                       'QUANT_DEPENDANTS'].median()
             X.loc[X['QUANT_DEPENDANTS'] > 15, 'QUANT_DEPENDANTS'] = median_dependants
 
-        # AGE + binning
         if 'AGE' in X.columns:
             X.loc[X['AGE'] < 18, 'AGE'] = 18
             X['AGE_GROUP'] = pd.cut(
@@ -105,11 +95,9 @@ class BaseCleaner(BaseEstimator, TransformerMixin):
                 right=False
             )
 
-        # Dropeo
         X = X.drop(columns=[c for c in self.columns_to_drop if c in X.columns],
                    errors='ignore')
 
-        # Map de Y/N → 1/0
         yn_cols = ['COMPANY', 'FLAG_RESIDENCIAL_PHONE', 'FLAG_PROFESSIONAL_PHONE']
         binary_map = {'Y': 1, 'N': 0, 1: 1, 0: 0}
         for col in yn_cols:
@@ -119,21 +107,12 @@ class BaseCleaner(BaseEstimator, TransformerMixin):
         return X
 
 
-# ============================================================
-# 🧩 2️⃣ CodeImputer con Flag — COMPATIBLE SKLEARN
-# ============================================================
-
 class CodeImputerWithFlag(BaseEstimator, TransformerMixin):
-    """
-    Imputa códigos numéricos con -1 + agrega flag *_WAS_NULL.
-    Totalmente compatible con ColumnTransformer.
-    """
-
     def __init__(self, fill_value=-1):
         self.fill_value = fill_value
 
     def fit(self, X, y=None):
-        self.columns_ = X.columns.tolist()   # Muy importante
+        self.columns_ = X.columns.tolist()
         return self
 
     def transform(self, X):
@@ -153,10 +132,6 @@ class CodeImputerWithFlag(BaseEstimator, TransformerMixin):
             names.append(col)
         return np.array(names)
 
-
-# ============================================================
-# 🧩 3️⃣ build_preprocessing_pipeline
-# ============================================================
 
 def build_preprocessing_pipeline():
 
