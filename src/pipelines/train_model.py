@@ -1,13 +1,17 @@
 import os
 import json
+import argparse
 import logging
 import numpy as np
 import pandas as pd
 import joblib
-from datetime import datetime
+import cloudpickle
 
 from sklearn.metrics import roc_auc_score, precision_recall_curve
-from sklearn.model_selection import RandomizedSearchCV
+from sklearn.model_selection import train_test_split, StratifiedKFold, RandomizedSearchCV
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.ensemble import StackingClassifier
+from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 
 
@@ -18,93 +22,131 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-DATA_DIR = "data/processed"
+RAW_DATA_PATH = "data/interim/train_clean_headers.parquet"
 ARTIFACTS_DIR = "model_service/artifacts"
-
-os.makedirs(ARTIFACTS_DIR, exist_ok=True)
+PREPROCESSOR_PATH = os.path.join(ARTIFACTS_DIR, "preprocessing_pipeline.joblib")
 
 TARGET_COL = "TARGET_LABEL_BAD=1"
 
+os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 def find_best_threshold(y_true, y_proba):
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
-
     f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-10)
     best_idx = np.argmax(f1_scores)
-
     return float(thresholds[best_idx]), float(f1_scores[best_idx])
 
 
-def run_training():
+def run_training(calibrate=True):
+    logger.info("📥 Cargando dataset RAW...")
 
-    logger.info("📥 Cargando datasets procesados...")
+    df = pd.read_parquet(RAW_DATA_PATH)
 
-    X_train = pd.read_parquet(os.path.join(DATA_DIR, "X_train.parquet"))
-    X_test = pd.read_parquet(os.path.join(DATA_DIR, "X_test.parquet"))
-    y_train = pd.read_parquet(os.path.join(DATA_DIR, "y_train.parquet"))[TARGET_COL]
-    y_test = pd.read_parquet(os.path.join(DATA_DIR, "y_test.parquet"))[TARGET_COL]
+    if TARGET_COL not in df.columns:
+        raise ValueError(f"No existe columna target {TARGET_COL}")
 
-    logger.info(f"📊 X_train = {X_train.shape}, X_test = {X_test.shape}")
+    X = df.drop(columns=[TARGET_COL])
+    y = df[TARGET_COL]
 
-    logger.info("🎯 Configurando búsqueda de hiperparámetros...")
+    logger.info(f"📊 Dataset: {df.shape[0]} filas, {df.shape[1]} columnas")
 
-    param_dist = {
-        "num_leaves": [31, 63, 127, 255],
-        "max_depth": [-1, 7, 9, 11],
-        "learning_rate": [0.1, 0.05, 0.02, 0.01],
-        "n_estimators": [400, 800, 1200],
-        "min_child_samples": [5, 10, 20, 40],
-        "subsample": [0.6, 0.8, 1.0],
-        "colsample_bytree": [0.6, 0.8, 1.0],
-        "scale_pos_weight": [1.5, 2.0, 2.5, 3.0],
-    }
+    logger.info("🔄 Cargando TU preprocessing pipeline...")
 
-    search = RandomizedSearchCV(
-        estimator=LGBMClassifier(
-            objective="binary",
-            boosting_type="gbdt",
-            random_state=42,
-            n_jobs=-1,
-        ),
-        param_distributions=param_dist,
-        n_iter=25,
-        scoring="roc_auc",
-        cv=3,
-        verbose=1,
-        n_jobs=-1,
-        random_state=42,
+    if not os.path.exists(PREPROCESSOR_PATH):
+        raise FileNotFoundError(f"No se encontró preprocessing_pipeline.joblib en {PREPROCESSOR_PATH}")
+
+    preprocessor = joblib.load(PREPROCESSOR_PATH)
+
+    X_train_raw, X_test_raw, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, stratify=y, random_state=42
     )
 
-    logger.info("🚀 Entrenando modelo (puede tardar unos minutos)...")
-    search.fit(X_train, y_train)
+    logger.info("🔄 Aplicando preprocesamiento a train/test...")
+    X_train = preprocessor.transform(X_train_raw)
+    X_test = preprocessor.transform(X_test_raw)
 
-    best_model = search.best_estimator_
-    logger.info(f"✅ Best params: {search.best_params_}")
-    logger.info(f"📈 Best ROC-AUC CV: {search.best_score_:.4f}")
+    logger.info(f"📏 X_train procesado: {X_train.shape}")
+    logger.info(f"📏 X_test procesado:  {X_test.shape}")
 
+    logger.info("🧠 Definiendo modelo stacking...")
+
+    xgb_base = XGBClassifier(
+        n_estimators=400,
+        learning_rate=0.03,
+        max_depth=4,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        eval_metric='auc',
+        random_state=42,
+        n_jobs=-1,
+        tree_method='hist'
+    )
+
+    lgbm_base = LGBMClassifier(
+        n_estimators=400,
+        learning_rate=0.03,
+        max_depth=4,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        class_weight='balanced',
+        random_state=42,
+        n_jobs=-1
+    )
+
+    meta_xgb = XGBClassifier(
+        n_estimators=250,
+        learning_rate=0.05,
+        max_depth=3,
+        subsample=0.8,
+        colsample_bytree=0.8,
+        eval_metric='auc',
+        random_state=42,
+        n_jobs=-1,
+        tree_method='hist'
+    )
+
+    stack_model = StackingClassifier(
+        estimators=[("xgb", xgb_base), ("lgbm", lgbm_base)],
+        final_estimator=meta_xgb,
+        cv=5,
+        passthrough=True,
+        n_jobs=-1
+    )
+
+    logger.info("🏋️ Entrenando modelo stacking...")
+    stack_model.fit(X_train, y_train)
+
+    if calibrate:
+        logger.info("🎯 Calibrando probabilidades...")
+        calibrated = CalibratedClassifierCV(stack_model, method="isotonic", cv=3)
+        calibrated.fit(X_train, y_train)
+        final_model = calibrated
+    else:
+        logger.info("⚙️ Sin calibración.")
+        final_model = stack_model
+    
     logger.info("📊 Evaluando en test...")
+    y_proba = final_model.predict_proba(X_test)[:, 1]
+    auc = roc_auc_score(y_test, y_proba)
 
-    test_proba = best_model.predict_proba(X_test)[:, 1]
-    roc = roc_auc_score(y_test, test_proba)
-    logger.info(f"🏁 Test ROC-AUC: {roc:.4f}")
+    best_thr, best_f1 = find_best_threshold(y_test, y_proba)
 
-    logger.info("🔎 Calculando mejor threshold según F1...")
-    best_threshold, best_f1 = find_best_threshold(y_test, test_proba)
+    logger.info(f"🏁 AUC test = {auc:.4f}")
+    logger.info(f"🔎 Threshold óptimo = {best_thr:.4f}")
+    logger.info(f"🎯 F1 = {best_f1:.4f}")
 
-    logger.info(f"🎯 Best threshold = {best_threshold:.4f}")
-    logger.info(f"🎯 Best F1 = {best_f1:.4f}")
+    model_path = os.path.join(ARTIFACTS_DIR, "model_stack.pkl")
 
-    model_path = os.path.join(ARTIFACTS_DIR, "model_stack_prod.pkl")
-    joblib.dump(best_model, model_path)
+    with open(model_path, "wb") as f:
+        cloudpickle.dump(final_model, f)
 
     logger.info(f"💾 Modelo guardado en: {model_path}")
 
     metadata = {
-        "best_params": search.best_params_,
-        "best_threshold": best_threshold,
-        "best_auc": roc,
+        "auc": auc,
+        "best_threshold": best_thr,
         "best_f1": best_f1,
-        "trained_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "calibrated": calibrate,
     }
 
     meta_path = os.path.join(ARTIFACTS_DIR, "model_metadata.json")
@@ -113,9 +155,14 @@ def run_training():
         json.dump(metadata, f, indent=4)
 
     logger.info(f"📄 Metadata guardada en: {meta_path}")
-
-    logger.info("🏁 Entrenamiento finalizado con éxito 🎉")
+    logger.info("🏁 Entrenamiento STACK completado con éxito 🎉")
 
 
 if __name__ == "__main__":
-    run_training()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--calibrate", type=str, default="true")
+    args = parser.parse_args()
+
+    calibrate_flag = args.calibrate.lower() == "true"
+
+    run_training(calibrate=calibrate_flag)
