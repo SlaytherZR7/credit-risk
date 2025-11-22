@@ -8,8 +8,11 @@ queue = Queue("model_queue", connection=redis_conn)
 
 # Cargar modelo + preprocessor una vez
 init_model()
+# Cargar modelo + preprocessor una vez
+init_model()
 
 def predict_one_task(features: dict):
+    return predict_single(features)
     return predict_single(features)
 
 def predict_batch_task(batch: list):

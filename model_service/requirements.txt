@@ -13,3 +13,4 @@ xgboost
 lightgbm
 xlrd
 feature_engine
+cloudpickle
