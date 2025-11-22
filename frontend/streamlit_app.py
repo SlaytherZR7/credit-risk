@@ -1,13 +1,7 @@
-"""
-Streamlit User Interface for Credit Risk Analysis System
-"""
 import os
-import json
 import streamlit as st
 import requests
 import time
-import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
 from typing import Dict, Any, List
@@ -27,7 +21,7 @@ st.set_page_config(
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")  + "/api/v1"
 
 def login_ui(page_prefix):
-    col1, col2, col3 = st.columns([1, 2, 1])
+    _, col2, _ = st.columns([1, 2, 1])
     with col2:
         st.markdown(
             """
@@ -70,7 +64,7 @@ def login_ui(page_prefix):
                 st.error(f"🚨 Error connecting to authentication server: {e}")
 
 def signup_ui(page_prefix):
-    col1, col2, col3 = st.columns([1, 2, 1])
+    _, col2, _ = st.columns([1, 2, 1])
     with col2:
         st.markdown("""
         <div style="
@@ -320,13 +314,12 @@ def fetch_job_result(job_id: str, max_attempts=20, sleep_time=1.0):
         "Content-Type": "application/json"
     }
     url = f"{API_BASE_URL}/predictions/result/{job_id}"
-    for attempt in range(max_attempts):
+    for _ in range(max_attempts):
         try:
             response = requests.get(url, headers=headers)
             response.raise_for_status()
             data = response.json()
             status = data.get("status")
-            result = data.get("result")
 
             if status in ["finished", "failed"]:
                 return data
@@ -340,10 +333,6 @@ def fetch_job_result(job_id: str, max_attempts=20, sleep_time=1.0):
     st.error("⏳ Timeout waiting for batch result.")
     return None
 
-
-# ---------------------------------
-# MAIN APP
-# ---------------------------------
 def main():
     with st.sidebar:
         st.markdown(f"👋 Logged in as: **{st.session_state.get('role', 'Unknown')}**")
@@ -363,18 +352,16 @@ def main():
         ["🔍 Individual Analysis", "📊 Batch Analysis"]
     )
 
-    # --- INDIVIDUAL ANALYSIS ---
     if page == "🔍 Individual Analysis":
         st.subheader("Individual Credit Application")
         profile_data = create_credit_application_form_m(custom_labels, field_options)  
-        col1, col2, col3 = st.columns([1, 2, 1])
+        _, col2, _ = st.columns([1, 2, 1])
         with col2:
             if st.button("🔮 Predict Credit Risk", type="primary",use_container_width=True):
                 rejection_flags = [
                         "FLAG_HOME_ADDRESS_DOCUMENT","FLAG_RG","FLAG_CPF","FLAG_INCOME_PROOF","FLAG_ACSP_RECORD"
                         ]
 
-                # --- Identify bad flags (value N or 1) ---
                 bad_flags = []
 
                 for f in rejection_flags:
@@ -418,12 +405,11 @@ def main():
 
 
 
-    # --- BATCH ANALYSIS ---
     elif page == "📊 Batch Analysis":
         st.subheader("Batch Credit Profile Upload")
         profile_data = create_credit_application_form()
 
-        col1, col2, col3 = st.columns([1, 2, 1])
+        _, col2, _ = st.columns([1, 2, 1])
         with col2:
             if st.button("🔮 Predict Credit Risk", type="primary",use_container_width=True):
                 rejection_flags = [
