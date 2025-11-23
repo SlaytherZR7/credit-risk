@@ -183,7 +183,7 @@ def run_training(calibrate=True):
     # ------------------------------------------
     # 7) Save artifacts
     # ------------------------------------------
-    model_path = os.path.join(ARTIFACTS_DIR, "model_stack.pkl")
+    model_path = os.path.join(ARTIFACTS_DIR, "model_stack_prod.pkl")
 
     with open(model_path, "wb") as f:
         cloudpickle.dump(final_model, f)
