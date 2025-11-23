@@ -3,6 +3,7 @@ Streamlit User Interface for Credit Risk Analysis System
 """
 import os
 import json
+import numpy as np
 import streamlit as st
 import requests
 import time
@@ -118,8 +119,6 @@ def signup_ui(page_prefix):
                     st.error(f"🚨 Error connecting to backend: {e}")
 
 # ---------------------------------
-# NAVEGACIÓN Y CONTROL DE SESIÓN
-# ---------------------------------
 if "token" not in st.session_state:
 
     page = st.sidebar.radio("Navigation", ["Login", "Sign up"])
@@ -130,10 +129,6 @@ if "token" not in st.session_state:
         signup_ui(page)
     st.stop() 
 
-
-# ---------------------------------
-# STYLES    
-# ---------------------------------
 st.markdown("""
 <style>
     .main-header {
@@ -163,6 +158,22 @@ st.markdown("""
 # ---------------------------------
 # HELPER FUNCTIONS
 # ---------------------------------
+def ensure_json_serializable(value):
+    """Convert numpy, NaN, and other problematic types to JSON-safe Python types."""
+
+    if isinstance(value, np.integer):
+        return int(value)
+
+    if isinstance(value, np.floating):
+        if np.isnan(value):
+            return None
+        return float(value)
+
+    if isinstance(value, np.bool_):
+        return bool(value)
+
+    return value
+
 def check_api_health() -> bool:
     """Check API availability."""
     try:
@@ -198,32 +209,57 @@ def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
         return None
 
 def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Send batch predictions to API."""
-    print("Sending batch profiles data to API:")
-    print(profiles_data)
+    """Send batch predictions to API with JSON cleaning + validation."""
+
     token = st.session_state.get("token")
 
     if not token:
         st.error("❌ You must log in before making predictions.")
         return None
 
+    cleaned_profiles = []
+    for profile in profiles_data:
+        cleaned_profile = {k: ensure_json_serializable(v) for k, v in profile.items()}
+        cleaned_profiles.append(cleaned_profile)
+
+    st.write("📤 JSON FINAL enviado al backend:")
+    st.json({"features": cleaned_profiles})
+
+    try:
+        print("\n==================== FRONTEND DEBUG: cleaned_profiles ====================")
+        print(cleaned_profiles)
+        print("==========================================================================\n")
+
+        json.dumps({"features": cleaned_profiles})
+    except Exception as e:
+        st.error(f"❌ INVALID JSON: {e}")
+        return None
+
+
     headers = {
-        "Authorization": f"Bearer {token}".strip(),
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
     }
 
     try:
         response = requests.post(
             f"{API_BASE_URL}/predictions/predict-batch",
-            json={"features": profiles_data},
+            json={"features": cleaned_profiles},
             headers=headers,
             timeout=30
         )
-        print("Response from batch prediction:")
-        print(response.status_code)
+
+        print("\n==================== FRONTEND DEBUG: raw backend response ====================")
         print(response.text)
+        print("===============================================================================\n")
+
+        st.write("📥 Backend response (raw):")
+        st.write(response.status_code)
+        st.write(response.text)
+
         response.raise_for_status()
         return response.json()
+
     except Exception as e:
         st.error(f"Batch request failed: {e}")
         return None
@@ -232,22 +268,19 @@ def build_model_payload_from_form(form_data: dict) -> dict:
     payload = {}
 
     for key, value in form_data.items():
-        if value in ["", None]:
+
+        value = ensure_json_serializable(value)
+        if value in ["", None, "None", "nan", "NaN"]:
             payload[key] = None
 
         elif isinstance(value, bool):
             payload[key] = int(value)
 
+        elif isinstance(value, str) and value.isdigit():
+            payload[key] = int(value)
+
         else:
-            try:
-                if isinstance(value, int):
-                    payload[key] = value
-                elif isinstance(value, str) and value.isdigit():
-                    payload[key] = int(value)
-                else:
-                    payload[key] = value
-            except:
-                payload[key] = value
+            payload[key] = value
 
     return payload
 
@@ -335,8 +368,16 @@ def fetch_job_result(job_id: str, max_attempts=20, sleep_time=1.0):
             response = requests.get(url, headers=headers)
             response.raise_for_status()
             data = response.json()
+            print("\n==================== FRONTEND DEBUG: /result/<id> RESPONSE ====================")
+            print(data)
+            print("===============================================================================\n")
             status = data.get("status")
             result = data.get("result")
+
+            if status in ["finished", "failed"]:
+                return data# Si el backend devuelve lista, normalizamos:
+            if isinstance(result, list) and len(result) == 1:
+                data["result"] = result[0]
 
             if status in ["finished", "failed"]:
                 return data
@@ -464,8 +505,12 @@ def main():
                         model_payload = build_model_payload_from_form(profile_data)
                         job_response  = predict_batch_profiles([model_payload]) 
                         st.write("📦 Response from batch enqueue:")
+                        print("\n==================== FRONTEND DEBUG: job_response ====================")
+                        print(job_response)
+                        print("===============================================================\n")
                         st.json(job_response)
-
+                        st.subheader("📦 JSON enviado al modelo:")
+                        st.code(json.dumps(model_payload, indent=2, ensure_ascii=False), language="json")
                     if job_response and "job_id" in job_response:
                         job_id = job_response["job_id"]
                         st.info(f"Job submitted with ID: {job_id}")

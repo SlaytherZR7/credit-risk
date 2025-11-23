@@ -331,4 +331,3 @@ def create_credit_application_form_m(custom_labels, field_options):
         st.success("✅ All fields have been completed")
 
     return form_data
-
