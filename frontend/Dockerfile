@@ -1,4 +1,3 @@
-# Frontend (Streamlit) Dockerfile
 FROM python:3.10-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -17,7 +16,6 @@ RUN pip install --upgrade pip \
 
 COPY . /app/frontend
 
-# Ensure imports find 'credit_form_interface' and project package
 ENV PYTHONPATH=/app:/app/frontend \
     STREAMLIT_BROWSER_GATHERUSAGESTATS=false \
     STREAMLIT_SERVER_HEADLESS=true

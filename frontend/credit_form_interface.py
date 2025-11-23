@@ -70,7 +70,7 @@ custom_labels = {
     "COMPANY": "Company Provided",
     "PROFESSIONAL_STATE": "Work State",
     "PROFESSIONAL_CITY": "Work City",
-    #"PROFESSIONAL_BOROUGH": "Work Borough",
+    "PROFESSIONAL_BOROUGH": "Work Borough",
     "FLAG_PROFESSIONAL_PHONE": "Has Work Phone?",
     "PROFESSIONAL_PHONE_AREA_CODE": "Work Phone Area Code",
     "MONTHS_IN_THE_JOB": "Months in Current Job",

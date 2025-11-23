@@ -1,11 +1,11 @@
 """
 ===========================================================
 🏋️‍♂️ TRAIN STACKING MODEL (uses YOUR preprocessing)
- - Carga datos crudos
- - Aplica TU preprocessing_pipeline.joblib
- - Entrena el modelo stacking de tu compañero
- - Calibración opcional
- - Genera model_stack.joblib + metadata
+-Loads raw data
+-Applies your preprocessing_pipeline.joblib
+-Trains your teammate’s stacking model
+-Optional calibration
+-Generates model_stack.joblib + metadata
 ===========================================================
 """
 
@@ -25,10 +25,6 @@ from sklearn.ensemble import StackingClassifier
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
 
-
-# ---------------------------------------------------------
-# LOGGING
-# ---------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s - %(message)s",
@@ -36,10 +32,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------
-# CONFIG
-# ---------------------------------------------------------
 RAW_DATA_PATH = "data/interim/train_clean_headers.parquet"
 ARTIFACTS_DIR = "model_service/artifacts"
 PREPROCESSOR_PATH = os.path.join(ARTIFACTS_DIR, "preprocessing_pipeline.joblib")
@@ -49,62 +41,45 @@ TARGET_COL = "TARGET_LABEL_BAD=1"
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 
-# ---------------------------------------------------------
-# Utility
-# ---------------------------------------------------------
 def find_best_threshold(y_true, y_proba):
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
     f1_scores = 2 * (precisions * recalls) / (precisions + recalls + 1e-10)
     best_idx = np.argmax(f1_scores)
     return float(thresholds[best_idx]), float(f1_scores[best_idx])
 
-
-# ---------------------------------------------------------
-# MAIN TRAINING PIPELINE
-# ---------------------------------------------------------
 def run_training(calibrate=True):
 
-    # ------------------------------------------
-    # 1) Load raw data
-    # ------------------------------------------
-    logger.info("📥 Cargando dataset RAW...")
+    logger.info("📥 Loading RAW dataset...")
 
     df = pd.read_parquet(RAW_DATA_PATH)
 
     if TARGET_COL not in df.columns:
-        raise ValueError(f"No existe columna target {TARGET_COL}")
+        raise ValueError(f"Target column does not exist {TARGET_COL}")
 
     X = df.drop(columns=[TARGET_COL])
     y = df[TARGET_COL]
 
-    logger.info(f"📊 Dataset: {df.shape[0]} filas, {df.shape[1]} columnas")
+    logger.info(f"📊 Dataset: {df.shape[0]} rows, {df.shape[1]} columns")
 
-    # ------------------------------------------
-    # 2) Load YOUR preprocessing
-    # ------------------------------------------
-    logger.info("🔄 Cargando TU preprocessing pipeline...")
+    logger.info("🔄 Loading preprocessing pipeline...")
 
     if not os.path.exists(PREPROCESSOR_PATH):
-        raise FileNotFoundError(f"No se encontró preprocessing_pipeline.joblib en {PREPROCESSOR_PATH}")
+        raise FileNotFoundError(f"preprocessing_pipeline.joblib not found in {PREPROCESSOR_PATH}")
 
     preprocessor = joblib.load(PREPROCESSOR_PATH)
 
-    # Split raw BEFORE processing
     X_train_raw, X_test_raw, y_train, y_test = train_test_split(
         X, y, test_size=0.2, stratify=y, random_state=42
     )
 
-    logger.info("🔄 Aplicando preprocesamiento a train/test...")
+    logger.info("🔄 Applying preprocessing to train/test...")
     X_train = preprocessor.transform(X_train_raw)
     X_test = preprocessor.transform(X_test_raw)
 
     logger.info(f"📏 X_train procesado: {X_train.shape}")
     logger.info(f"📏 X_test procesado:  {X_test.shape}")
 
-    # ------------------------------------------
-    # 3) Define Stacking model (como el de tu compañero)
-    # ------------------------------------------
-    logger.info("🧠 Definiendo modelo stacking...")
+    logger.info("🧠 Defining stack modeling...")
 
     xgb_base = XGBClassifier(
         n_estimators=400,
@@ -149,28 +124,20 @@ def run_training(calibrate=True):
         n_jobs=-1
     )
 
-    # ------------------------------------------
-    # 4) Fit model
-    # ------------------------------------------
-    logger.info("🏋️ Entrenando modelo stacking...")
+
+    logger.info("🏋️ Training stack modeling...")
     stack_model.fit(X_train, y_train)
 
-    # ------------------------------------------
-    # 5) Optionally calibrate
-    # ------------------------------------------
     if calibrate:
-        logger.info("🎯 Calibrando probabilidades...")
+        logger.info("🎯 Calibrating probs...")
         calibrated = CalibratedClassifierCV(stack_model, method="isotonic", cv=3)
         calibrated.fit(X_train, y_train)
         final_model = calibrated
     else:
-        logger.info("⚙️ Sin calibración.")
+        logger.info("⚙️ Without calibration.")
         final_model = stack_model
 
-    # ------------------------------------------
-    # 6) Evaluate
-    # ------------------------------------------
-    logger.info("📊 Evaluando en test...")
+    logger.info("📊 Evaluating test...")
     y_proba = final_model.predict_proba(X_test)[:, 1]
     auc = roc_auc_score(y_test, y_proba)
 
@@ -180,15 +147,12 @@ def run_training(calibrate=True):
     logger.info(f"🔎 Threshold óptimo = {best_thr:.4f}")
     logger.info(f"🎯 F1 = {best_f1:.4f}")
 
-    # ------------------------------------------
-    # 7) Save artifacts
-    # ------------------------------------------
     model_path = os.path.join(ARTIFACTS_DIR, "model_stack_prod.pkl")
 
     with open(model_path, "wb") as f:
         cloudpickle.dump(final_model, f)
 
-    logger.info(f"💾 Modelo guardado en: {model_path}")
+    logger.info(f"💾 Model saved at: {model_path}")
 
     metadata = {
         "auc": auc,
@@ -202,13 +166,9 @@ def run_training(calibrate=True):
     with open(meta_path, "w") as f:
         json.dump(metadata, f, indent=4)
 
-    logger.info(f"📄 Metadata guardada en: {meta_path}")
-    logger.info("🏁 Entrenamiento STACK completado con éxito 🎉")
+    logger.info(f"📄  Metadata saved at: {meta_path}")
+    logger.info("🏁 STACK training completed successfully 🎉")
 
-
-# ---------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--calibrate", type=str, default="true")
