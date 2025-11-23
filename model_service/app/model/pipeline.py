@@ -11,7 +11,7 @@ import joblib
 BASE_DIR = "/app/artifacts"
 
 PREPROCESSOR_PATH = os.path.join(BASE_DIR, "preprocessing_pipeline.joblib")
-MODEL_PATH = os.path.join(BASE_DIR, "model_stack_prod.pkl")   # ← TU MODELO LGBM
+MODEL_PATH = os.path.join(BASE_DIR, "model_stack_prod.pkl")   # tu modelo
 META_PATH = os.path.join(BASE_DIR, "model_metadata.json")
 
 # ======================================================================
@@ -24,7 +24,7 @@ _threshold = None
 
 
 # ======================================================================
-# ⭐ CARGA DE MODELO + PREPROCESSING (1 sola vez)
+# ⭐ INIT DEL MODELO (se ejecuta 1 sola vez)
 # ======================================================================
 
 def init_model():
@@ -33,27 +33,21 @@ def init_model():
     if _preprocessor is not None and _model is not None:
         return _preprocessor, _model
 
-    # -----------------------
-    # Preprocessing pipeline
-    # -----------------------
+    # --- Preprocessor ---
     if not os.path.exists(PREPROCESSOR_PATH):
         raise FileNotFoundError(f"❌ Preprocessor not found: {PREPROCESSOR_PATH}")
 
     print("🔹 Loading preprocessing pipeline...")
     _preprocessor = joblib.load(PREPROCESSOR_PATH)
 
-    # -----------------------
-    # Modelo LightGBM
-    # -----------------------
+    # --- Modelo ---
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(f"❌ Model file not found: {MODEL_PATH}")
 
-    print("🔹 Loading LightGBM model...")
+    print("🔹 Loading final model...")
     _model = joblib.load(MODEL_PATH)
 
-    # -----------------------
-    # Metadata (threshold)
-    # -----------------------
+    # --- Metadata ---
     if os.path.exists(META_PATH):
         with open(META_PATH, "r") as f:
             metadata = json.load(f)
@@ -61,27 +55,93 @@ def init_model():
     else:
         _threshold = 0.5
 
-    print("✅ Model + preprocessing loaded successfully")
+    print("✅ Model + preprocessing loaded")
     print(f"🔎 Threshold: {_threshold}")
 
     return _preprocessor, _model
 
 
 # ======================================================================
-# ⭐ PREDICCIÓN PARA UN SOLO REGISTRO
+# ⭐ UTILIDADES PARA VALIDACIÓN
+# ======================================================================
+
+def get_required_input_columns(preprocessor):
+    """
+    Devuelve SOLO las columnas que el JSON debe incluir.
+    NO incluye columnas derivadas internas del BaseCleaner.
+    """
+
+    base_cleaner = preprocessor.named_steps["base_cleaner"]
+
+    # columnas derivadas dentro de BaseCleaner → NO deben venir en el JSON
+    internal_cols = set([
+        "AGE_GROUP",
+        "TOTAL_INCOME",
+        "INCOME_PER_DEPENDANT",
+        "LOG_TOTAL_INCOME",
+        "N_CARDS",
+        "HAS_CARDS",
+        "WORKS_SAME_STATE",
+    ])
+
+    # columnas que BaseCleaner usa/preprocesa y que SI deben venir
+    required = set(
+        base_cleaner.state_cols_to_clean +
+        base_cleaner.code_cols_to_clean +
+        base_cleaner.income_cols
+    )
+
+    # también las columnas numéricas no derivadas, flags, etc.
+    # pero BaseCleaner no las tiene listadas explícitamente,
+    # por eso usamos el ColumnTransformer para obtener columnas esperadas.
+
+    ct = preprocessor.named_steps["preprocessor"]
+
+    ct_required = set()
+    for name, trans, cols in ct.transformers:
+        if cols == "drop":
+            continue
+        if isinstance(cols, list):
+            for col in cols:
+                # si la columna es interna, no la agrego
+                if col not in internal_cols:
+                    ct_required.add(col)
+
+    # retorno las columnas que SI deben venir desde el front
+    return ct_required - internal_cols
+
+
+def validate_columns(df, preprocessor):
+    """
+    Valida que el JSON tenga las columnas *necesarias*.
+    NO exige columnas internas generadas por BaseCleaner.
+    """
+    required = get_required_input_columns(preprocessor)
+
+    missing = required - set(df.columns)
+    if missing:
+        raise ValueError(f"Missing required JSON columns: {sorted(missing)}")
+
+    # OK
+    return True
+
+
+# ======================================================================
+# ⭐ PREDICCIÓN SINGLE
 # ======================================================================
 
 def predict_single(features: dict):
     preprocessor, model = init_model()
 
-    # JSON → DataFrame
-    X_raw = pd.DataFrame([features])
+    df = pd.DataFrame([features])
 
-    # Preprocessing
-    X_processed = preprocessor.transform(X_raw)
+    # validar columnas
+    validate_columns(df, preprocessor)
 
-    # Predict prob
-    proba = float(model.predict_proba(X_processed)[0, 1])
+    # aplicar preprocessor
+    X_proc = preprocessor.transform(df)
+
+    proba = float(model.predict_proba(X_proc)[0, 1])
     if not np.isfinite(proba):
         proba = 0.0
 
@@ -102,9 +162,12 @@ def predict_batch(batch: list):
     preprocessor, model = init_model()
 
     df = pd.DataFrame(batch)
-    X_processed = preprocessor.transform(df)
 
-    probas = model.predict_proba(X_processed)[:, 1]
+    # validar
+    validate_columns(df, preprocessor)
+
+    X_proc = preprocessor.transform(df)
+    probas = model.predict_proba(X_proc)[:, 1]
 
     results = []
     for proba in probas:

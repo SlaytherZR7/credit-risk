@@ -3,8 +3,10 @@ Streamlit User Interface for Credit Risk Analysis System
 """
 import os
 import json
+import numpy as np
 import streamlit as st
 import requests
+import time
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -20,13 +22,12 @@ from credit_form_interface import (
 st.set_page_config(
     page_title="Credit Risk Analysis",
     page_icon="💳",
-    layout="wide",  # 👈 garantiza que ocupe todo el ancho
+    layout="wide", 
     initial_sidebar_state="expanded"
 )
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")  + "/api/v1"
 
 def login_ui(page_prefix):
-    # --- Diseño centrado ---
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.markdown(
@@ -89,7 +90,6 @@ def signup_ui(page_prefix):
         confirm_password = st.text_input("🔁 Confirm Password", type="password", key=f"{page_prefix}_confirm")
 
         if st.button("Create Account", use_container_width=True):
-            # --- Validaciones básicas ---
             if not email or not full_name or not password or not confirm_password:
                 st.warning("⚠️ Please fill in all fields.")
                 st.stop()
@@ -119,22 +119,16 @@ def signup_ui(page_prefix):
                     st.error(f"🚨 Error connecting to backend: {e}")
 
 # ---------------------------------
-# NAVEGACIÓN Y CONTROL DE SESIÓN
-# ---------------------------------
 if "token" not in st.session_state:
-    # Mostrar solo login / signup mientras no haya sesión
+
     page = st.sidebar.radio("Navigation", ["Login", "Sign up"])
 
     if page == "Login":
         login_ui(page)
     elif page == "Sign up":
         signup_ui(page)
-    st.stop()  # 👈 Detiene aquí, no ejecuta el resto del código
+    st.stop() 
 
-
-# ---------------------------------
-# STYLES    
-# ---------------------------------
 st.markdown("""
 <style>
     .main-header {
@@ -164,6 +158,22 @@ st.markdown("""
 # ---------------------------------
 # HELPER FUNCTIONS
 # ---------------------------------
+def ensure_json_serializable(value):
+    """Convert numpy, NaN, and other problematic types to JSON-safe Python types."""
+
+    if isinstance(value, np.integer):
+        return int(value)
+
+    if isinstance(value, np.floating):
+        if np.isnan(value):
+            return None
+        return float(value)
+
+    if isinstance(value, np.bool_):
+        return bool(value)
+
+    return value
+
 def check_api_health() -> bool:
     """Check API availability."""
     try:
@@ -174,9 +184,7 @@ def check_api_health() -> bool:
 
 def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
     """Send individual prediction to API."""
-    # st.subheader("JSON enviado al backend (individual):")
-    # st.code(json.dumps({"features": [profile_data]}, indent=2))
-    token = st.session_state.get("token")  # ⬅️ Get token
+    token = st.session_state.get("token") 
 
     if not token:
         st.error("❌ You must log in before making predictions.")
@@ -201,71 +209,79 @@ def predict_single_profile(profile_data: Dict[str, Any]) -> Dict[str, Any]:
         return None
 
 def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Send batch predictions to API."""
-    # st.subheader("JSON enviado al backend (batch):")
-    # st.code(json.dumps({"features": profiles_data}, indent=2))
-    token = st.session_state.get("token")  # ⬅️ recuperamos el token
+    """Send batch predictions to API with JSON cleaning + validation."""
+
+    token = st.session_state.get("token")
 
     if not token:
         st.error("❌ You must log in before making predictions.")
         return None
 
+    cleaned_profiles = []
+    for profile in profiles_data:
+        cleaned_profile = {k: ensure_json_serializable(v) for k, v in profile.items()}
+        cleaned_profiles.append(cleaned_profile)
+
+    st.write("📤 JSON FINAL enviado al backend:")
+    st.json({"features": cleaned_profiles})
+
+    try:
+        print("\n==================== FRONTEND DEBUG: cleaned_profiles ====================")
+        print(cleaned_profiles)
+        print("==========================================================================\n")
+
+        json.dumps({"features": cleaned_profiles})
+    except Exception as e:
+        st.error(f"❌ INVALID JSON: {e}")
+        return None
+
+
     headers = {
-        "Authorization": f"Bearer {token}".strip(),
-        "Content-Type": "application/json"
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
     }
 
     try:
         response = requests.post(
             f"{API_BASE_URL}/predictions/predict-batch",
-            json={"features": profiles_data},
+            json={"features": cleaned_profiles},
             headers=headers,
             timeout=30
         )
+
+        print("\n==================== FRONTEND DEBUG: raw backend response ====================")
+        print(response.text)
+        print("===============================================================================\n")
+
+        st.write("📥 Backend response (raw):")
+        st.write(response.status_code)
+        st.write(response.text)
+
         response.raise_for_status()
         return response.json()
+
     except Exception as e:
         st.error(f"Batch request failed: {e}")
         return None
 
-def simulate_credit_decisions(profiles_data: List[Dict[str, Any]], decision_threshold: float, profit_margin: float):
-    """Simulate credit decision profitability."""
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/simulate",
-            json={"profiles": profiles_data, "decision_threshold": decision_threshold, "profit_margin": profit_margin},
-            timeout=30
-        )
-        response.raise_for_status()
-        return response.json()
-    except Exception as e:
-        st.error(f"Simulation failed: {e}")
-        return None
 
 def build_model_payload_from_form(form_data: dict) -> dict:
     payload = {}
 
     for key, value in form_data.items():
-        # Vacíos → None
-        if value in ["", None]:
+
+        value = ensure_json_serializable(value)
+        if value in ["", None, "None", "nan", "NaN"]:
             payload[key] = None
 
-        # Checkbox (True/False) → 1/0
         elif isinstance(value, bool):
             payload[key] = int(value)
 
+        elif isinstance(value, str) and value.isdigit():
+            payload[key] = int(value)
+
         else:
-            try:
-                # Si es número entero (ej: 15 o "15") → int
-                if isinstance(value, int):
-                    payload[key] = value
-                elif isinstance(value, str) and value.isdigit():
-                    payload[key] = int(value)
-                # Si no es número entero → dejar como string
-                else:
-                    payload[key] = value
-            except:
-                payload[key] = value
+            payload[key] = value
 
     return payload
 
@@ -273,29 +289,24 @@ def build_model_payload_from_form(form_data: dict) -> dict:
 
 def display_risk_result(prediction: Dict[str, Any]):
     """Display risk prediction with correct color and layout."""
-    # --- Extract values ---
     risk_score = float(prediction.get("risk_score", 0))
     confidence = prediction.get("confidence", 0)
-    recommendation = prediction.get("recommendation", "Review")
 
-    # --- Determine label and color ---
     if risk_score >= 0.7:
         risk_level = "BAD"
-        color = "#f44336"  # Red
+        color = "#f44336" 
         decision = "🚫 Reject"
         explanation = "⚠️ High risk of default — profile should be rejected."
     elif 0.4 <= risk_score < 0.7:
         risk_level = "MEDIUM"
-        color = "#ff9800"  # Orange
+        color = "#ff9800" 
         decision = "🟠 Review"
         explanation = "⚠️ Medium risk — requires manual review."
     else:
         risk_level = "GOOD"
-        color = "#4caf50"  # Green
+        color = "#4caf50"
         decision = "✅ Approve"
         explanation = "✅ Low risk — client likely to meet obligations."
-
-    # --- Display metrics in same row ---
 
     col1, col2 = st.columns(2)
     with col1:
@@ -316,8 +327,6 @@ def display_risk_result(prediction: Dict[str, Any]):
         </div>
         """, unsafe_allow_html=True)
 
-
-    # --- Gauge Visualization ---
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=risk_score * 100,
@@ -332,16 +341,56 @@ def display_risk_result(prediction: Dict[str, Any]):
             ]
         }
     ))
-    fig.update_layout(height=400)  # Increased size
+    fig.update_layout(height=400) 
     st.plotly_chart(fig, use_container_width=True)
 
-    # --- Summary Card ---
     st.markdown(f"""
     <div style="background-color:{color}20;padding:10px;border-radius:8px;">
         <strong>Interpretation:</strong> {explanation}<br>
         <strong>Timestamp:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     </div>
     """, unsafe_allow_html=True)
+
+def fetch_job_result(job_id: str, max_attempts=20, sleep_time=1.0):
+    """
+    Poll the model service via API Gateway until job is finished.
+    """
+    token = st.session_state.get("token")
+    if not token:
+        st.error("❌ You must log in before fetching predictions.")
+        return None
+    headers = {
+        "Authorization": f"Bearer {token}".strip(),
+        "Content-Type": "application/json"
+    }
+    url = f"{API_BASE_URL}/predictions/result/{job_id}"
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            print("\n==================== FRONTEND DEBUG: /result/<id> RESPONSE ====================")
+            print(data)
+            print("===============================================================================\n")
+            status = data.get("status")
+            result = data.get("result")
+
+            if status in ["finished", "failed"]:
+                return data# Si el backend devuelve lista, normalizamos:
+            if isinstance(result, list) and len(result) == 1:
+                data["result"] = result[0]
+
+            if status in ["finished", "failed"]:
+                return data
+
+        except Exception as e:
+            st.error(f"Error fetching job result: {e}")
+            return None
+
+        time.sleep(sleep_time)
+
+    st.error("⏳ Timeout waiting for batch result.")
+    return None
 
 
 # ---------------------------------
@@ -384,17 +433,14 @@ def main():
                     value = str(profile_data.get(f, "")).strip().upper()
 
                     if f == "FLAG_ACSP_RECORD":
-                        # 👉 Regla especial:
-                        # SOLO "Y" es malo. "N" es bueno.
+
                         if value == "Y":
                             bad_flags.append(f)
 
                     else:
-                        # 👉 Regla original para el resto:
                         if value in ["N", "1"]:
                             bad_flags.append(f)
 
-                # Si hay FLAGs en N → perfil malo (score = 0)
                 if bad_flags:
                     st.error("🚫 Credit Profile: **Bad (Rejected)**")
                     st.write("The following fields caused rejection:")
@@ -402,21 +448,17 @@ def main():
                         st.write(f"•", f)
                     risk_score = 1.0
                     recommendation = "Reject Application"
-                else:
-                    # Caso normal: consultar modelo
+                else:         
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
                         st.write(model_payload)
                         result = predict_single_profile(model_payload)
                     if result:
-                        risk_score = result.get("risk_score", 0.5)  # valor entre 0 y 1
+                        risk_score = result.get("risk_score", 0.5) 
                         recommendation = result.get("recommendation", "Review")
                     else:
                         st.error("Failed to get prediction.")
                         risk_score = None
-
-                
-            # Mostrar resultado con display_risk_result
                 if risk_score is not None:
                     result = {
                         "risk_score": risk_score,
@@ -440,24 +482,18 @@ def main():
                         "FLAG_HOME_ADDRESS_DOCUMENT","FLAG_RG","FLAG_CPF","FLAG_INCOME_PROOF","FLAG_ACSP_RECORD"
                         ]
 
-                # --- Identify bad flags (value N or 1) ---
                 bad_flags = []
 
                 for f in rejection_flags:
                     value = str(profile_data.get(f, "")).strip().upper()
 
                     if f == "FLAG_ACSP_RECORD":
-                        # 👉 Regla especial:
-                        # SOLO "Y" es malo. "N" es bueno.
                         if value == "Y":
                             bad_flags.append(f)
 
                     else:
-                        # 👉 Regla original para el resto:
                         if value in ["N", "1"]:
                             bad_flags.append(f)
-
-                # Si hay FLAGs en N → perfil malo (score = 0)
                 if bad_flags:
                     st.error("🚫 Credit Profile: **Bad (Rejected)**")
                     st.write("The following fields caused rejection:")
@@ -466,19 +502,34 @@ def main():
                     risk_score = 1.0
                     recommendation = "Reject Application"
                 else:
-                    # Caso normal: consultar modelo
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
-                        result = predict_batch_profiles([model_payload])
-                    if result:
-                        risk_score = result.get("risk_score", 0.5)  # valor entre 0 y 1
-                        recommendation = result.get("recommendation", "Review")
-                    else:
-                        st.error("Failed to get prediction.")
-                        risk_score = None
+                        job_response  = predict_batch_profiles([model_payload]) 
+                        st.write("📦 Response from batch enqueue:")
+                        print("\n==================== FRONTEND DEBUG: job_response ====================")
+                        print(job_response)
+                        print("===============================================================\n")
+                        st.json(job_response)
+                        st.subheader("📦 JSON enviado al modelo:")
+                        st.code(json.dumps(model_payload, indent=2, ensure_ascii=False), language="json")
+                    if job_response and "job_id" in job_response:
+                        job_id = job_response["job_id"]
+                        st.info(f"Job submitted with ID: {job_id}")
 
-                
-            # Mostrar resultado con display_risk_result
+                    with st.spinner("Waiting for model prediction..."):
+                        final_result = fetch_job_result(job_id)
+                        st.write("📄 Final job response:")
+                        st.json(final_result)
+
+                    if final_result and final_result.get("status") == "finished":
+                        output = final_result.get("result", {})
+                        risk_score = output.get("risk_score")
+                        recommendation = output.get("recommendation")
+                    else:
+                        st.error("Prediction failed or timed out.")
+                        risk_score = None
+             
+
                 if risk_score is not None:
                     result = {
                         "risk_score": risk_score,
