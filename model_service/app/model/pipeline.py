@@ -5,13 +5,21 @@ import numpy as np
 import joblib
 
 # ======================================================================
+# ⭐ FORZAR SINGLE-THREADED (evitar deadlocks)
+# ======================================================================
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
+os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
+# ======================================================================
 # ⭐ CONFIGURACIÓN DE RUTAS (dentro del contenedor Docker)
 # ======================================================================
 
 BASE_DIR = "/app/artifacts"
 
 PREPROCESSOR_PATH = os.path.join(BASE_DIR, "preprocessing_pipeline.joblib")
-MODEL_PATH = os.path.join(BASE_DIR, "model_stack_prod.pkl")   # tu modelo
+MODEL_PATH = os.path.join(BASE_DIR, "model_stack_prod.pkl")
 META_PATH = os.path.join(BASE_DIR, "model_metadata.json")
 
 # ======================================================================
@@ -55,7 +63,6 @@ def init_model():
     else:
         _threshold = 0.5
 
-    print("✅ Model + preprocessing loaded")
     print(f"🔎 Threshold: {_threshold}")
 
     return _preprocessor, _model
@@ -91,10 +98,6 @@ def get_required_input_columns(preprocessor):
         base_cleaner.income_cols
     )
 
-    # también las columnas numéricas no derivadas, flags, etc.
-    # pero BaseCleaner no las tiene listadas explícitamente,
-    # por eso usamos el ColumnTransformer para obtener columnas esperadas.
-
     ct = preprocessor.named_steps["preprocessor"]
 
     ct_required = set()
@@ -103,11 +106,9 @@ def get_required_input_columns(preprocessor):
             continue
         if isinstance(cols, list):
             for col in cols:
-                # si la columna es interna, no la agrego
                 if col not in internal_cols:
                     ct_required.add(col)
 
-    # retorno las columnas que SI deben venir desde el front
     return ct_required - internal_cols
 
 
@@ -122,7 +123,6 @@ def validate_columns(df, preprocessor):
     if missing:
         raise ValueError(f"Missing required JSON columns: {sorted(missing)}")
 
-    # OK
     return True
 
 
@@ -135,10 +135,8 @@ def predict_single(features: dict):
 
     df = pd.DataFrame([features])
 
-    # validar columnas
     validate_columns(df, preprocessor)
 
-    # aplicar preprocessor
     X_proc = preprocessor.transform(df)
 
     proba = float(model.predict_proba(X_proc)[0, 1])
@@ -163,7 +161,6 @@ def predict_batch(batch: list):
 
     df = pd.DataFrame(batch)
 
-    # validar
     validate_columns(df, preprocessor)
 
     X_proc = preprocessor.transform(df)
