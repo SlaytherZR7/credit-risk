@@ -1,11 +1,11 @@
 """
 ===========================================================
 🏋️‍♂️ TRAIN MODEL PIPELINE
- - Carga datos procesados
- - Entrena LightGBM con búsqueda aleatoria
- - Evalúa en test
- - Calcula el mejor threshold
- - Guarda modelo y metadata
+-Loads processed data
+-Trains LightGBM using random search
+-Evaluates on the test set
+-Computes the optimal threshold
+-Saves the model and metadata
 ===========================================================
 """
 
@@ -21,10 +21,6 @@ from sklearn.metrics import roc_auc_score, f1_score, precision_recall_curve
 from sklearn.model_selection import RandomizedSearchCV
 from lightgbm import LGBMClassifier
 
-
-# ---------------------------------------------------------
-# LOGGING
-# ---------------------------------------------------------
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] %(levelname)s - %(message)s",
@@ -32,10 +28,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# ---------------------------------------------------------
-# DIRECTORIOS
-# ---------------------------------------------------------
 DATA_DIR = "data/processed"
 ARTIFACTS_DIR = "model_service/artifacts"
 
@@ -43,10 +35,6 @@ os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 TARGET_COL = "TARGET_LABEL_BAD=1"
 
-
-# ---------------------------------------------------------
-# FUNCIÓN PARA CALCULAR MEJOR THRESHOLD
-# ---------------------------------------------------------
 def find_best_threshold(y_true, y_proba):
     precisions, recalls, thresholds = precision_recall_curve(y_true, y_proba)
 
@@ -55,15 +43,8 @@ def find_best_threshold(y_true, y_proba):
 
     return float(thresholds[best_idx]), float(f1_scores[best_idx])
 
-
-# ---------------------------------------------------------
-# PIPELINE PRINCIPAL
-# ---------------------------------------------------------
 def run_training():
 
-    # -------------------------
-    # 1. Cargar datos procesados
-    # -------------------------
     logger.info("📥 Cargando datasets procesados...")
 
     X_train = pd.read_parquet(os.path.join(DATA_DIR, "X_train.parquet"))
@@ -73,9 +54,6 @@ def run_training():
 
     logger.info(f"📊 X_train = {X_train.shape}, X_test = {X_test.shape}")
 
-    # -------------------------
-    # 2. Configurar modelo + RandomSearch
-    # -------------------------
     logger.info("🎯 Configurando búsqueda de hiperparámetros...")
 
     param_dist = {
@@ -105,9 +83,6 @@ def run_training():
         random_state=42,
     )
 
-    # -------------------------
-    # 3. Entrenamiento
-    # -------------------------
     logger.info("🚀 Entrenando modelo (puede tardar unos minutos)...")
     search.fit(X_train, y_train)
 
@@ -115,35 +90,23 @@ def run_training():
     logger.info(f"✅ Best params: {search.best_params_}")
     logger.info(f"📈 Best ROC-AUC CV: {search.best_score_:.4f}")
 
-    # -------------------------
-    # 4. Evaluación en test
-    # -------------------------
     logger.info("📊 Evaluando en test...")
 
     test_proba = best_model.predict_proba(X_test)[:, 1]
     roc = roc_auc_score(y_test, test_proba)
     logger.info(f"🏁 Test ROC-AUC: {roc:.4f}")
 
-    # -------------------------
-    # 5. Calcular mejor threshold
-    # -------------------------
-    logger.info("🔎 Calculando mejor threshold según F1...")
+     logger.info("🔎 Calculando mejor threshold según F1...")
     best_threshold, best_f1 = find_best_threshold(y_test, test_proba)
 
     logger.info(f"🎯 Best threshold = {best_threshold:.4f}")
     logger.info(f"🎯 Best F1 = {best_f1:.4f}")
 
-    # -------------------------
-    # 6. Guardar modelo
-    # -------------------------
     model_path = os.path.join(ARTIFACTS_DIR, "model_stack_prod.pkl")
     joblib.dump(best_model, model_path)
 
     logger.info(f"💾 Modelo guardado en: {model_path}")
 
-    # -------------------------
-    # 7. Guardar metadata
-    # -------------------------
     metadata = {
         "best_params": search.best_params_,
         "best_threshold": best_threshold,
@@ -161,9 +124,5 @@ def run_training():
 
     logger.info("🏁 Entrenamiento finalizado con éxito 🎉")
 
-
-# ---------------------------------------------------------
-# ENTRY POINT
-# ---------------------------------------------------------
 if __name__ == "__main__":
     run_training()

@@ -1,0 +1,52 @@
+{
+    "low_variation_num": [
+        "NACIONALITY",
+        "OTHER_INCOMES",
+        "FLAG_MASTERCARD",
+        "PERSONAL_ASSETS_VALUE",
+        "QUANT_DEPENDANTS",
+        "MONTHS_IN_RESIDENCE",
+        "PERSONAL_MONTHLY_INCOME",
+        "PROFESSION_CODE",
+        "MATE_PROFESSION_CODE"
+    ],
+    "low_variation_cat": [],
+    "num_reales": [],
+    "num_bins": [
+        "AGE"
+    ],
+    "binary_cols": [
+        "FLAG_EMAIL",
+        "FLAG_VISA",
+        "QUANT_CARS"
+    ],
+    "cat_low": [
+        "PAYMENT_DAY",
+        "MARITAL_STATUS",
+        "RESIDENCE_TYPE",
+        "QUANT_BANKING_ACCOUNTS",
+        "QUANT_SPECIAL_BANKING_ACCOUNTS",
+        "OCCUPATION_TYPE",
+        "MATE_EDUCATION_LEVEL",
+        "PRODUCT",
+        "APPLICATION_SUBMISSION_TYPE",
+        "SEX",
+        "FLAG_RESIDENCIAL_PHONE",
+        "COMPANY",
+        "FLAG_PROFESSIONAL_PHONE"
+    ],
+    "cat_high": [
+        "STATE_OF_BIRTH",
+        "CITY_OF_BIRTH",
+        "RESIDENCIAL_STATE",
+        "RESIDENCIAL_CITY",
+        "RESIDENCIAL_BOROUGH",
+        "RESIDENCIAL_PHONE_AREA_CODE",
+        "PROFESSIONAL_STATE",
+        "PROFESSIONAL_CITY",
+        "PROFESSIONAL_BOROUGH",
+        "PROFESSIONAL_PHONE_AREA_CODE",
+        "RESIDENCIAL_ZIP_3",
+        "PROFESSIONAL_ZIP_3"
+    ]
+}

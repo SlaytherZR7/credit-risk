@@ -118,7 +118,6 @@ def signup_ui(page_prefix):
             except Exception as e:
                     st.error(f"🚨 Error connecting to backend: {e}")
 
-# ---------------------------------
 if "token" not in st.session_state:
 
     page = st.sidebar.radio("Navigation", ["Login", "Sign up"])
@@ -222,9 +221,6 @@ def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any
         cleaned_profile = {k: ensure_json_serializable(v) for k, v in profile.items()}
         cleaned_profiles.append(cleaned_profile)
 
-    st.write("📤 JSON FINAL enviado al backend:")
-    st.json({"features": cleaned_profiles})
-
     try:
         print("\n==================== FRONTEND DEBUG: cleaned_profiles ====================")
         print(cleaned_profiles)
@@ -248,14 +244,6 @@ def predict_batch_profiles(profiles_data: List[Dict[str, Any]]) -> Dict[str, Any
             headers=headers,
             timeout=30
         )
-
-        print("\n==================== FRONTEND DEBUG: raw backend response ====================")
-        print(response.text)
-        print("===============================================================================\n")
-
-        st.write("📥 Backend response (raw):")
-        st.write(response.status_code)
-        st.write(response.text)
 
         response.raise_for_status()
         return response.json()
@@ -290,13 +278,14 @@ def display_risk_result(prediction: Dict[str, Any]):
     """Display risk prediction with correct color and layout."""
     risk_score = float(prediction.get("risk_score", 0))
     confidence = prediction.get("confidence", 0)
+    threshold = prediction.get("threshold", 0.3)
 
-    if risk_score >= 0.7:
+    if risk_score >= 0.5:
         risk_level = "BAD"
         color = "#f44336" 
         decision = "🚫 Reject"
         explanation = "⚠️ High risk of default — profile should be rejected."
-    elif 0.4 <= risk_score < 0.7:
+    elif threshold <= risk_score < 0.5:
         risk_level = "MEDIUM"
         color = "#ff9800" 
         decision = "🟠 Review"
@@ -334,9 +323,9 @@ def display_risk_result(prediction: Dict[str, Any]):
             'axis': {'range': [0, 100]},
             'bar': {'color': color},
             'steps': [
-                {'range': [0, 40], 'color': "#e8f5e8"},
-                {'range': [40, 70], 'color': "#fff3e0"},
-                {'range': [70, 100], 'color': "#ffebee"}
+                {'range': [0, threshold], 'color': "#e8f5e8"},
+                {'range': [threshold, 50], 'color': "#fff3e0"},
+                {'range': [50, 100], 'color': "#ffebee"}
             ]
         }
     ))
@@ -375,7 +364,7 @@ def fetch_job_result(job_id: str, max_attempts=20, sleep_time=1.0):
             result = data.get("result")
 
             if status in ["finished", "failed"]:
-                return data# Si el backend devuelve lista, normalizamos:
+                return data
             if isinstance(result, list) and len(result) == 1:
                 data["result"] = result[0]
 
@@ -407,7 +396,6 @@ def main():
         st.error("⚠️ API not available. Please run: `uvicorn api.main:app --reload`")
         st.stop()
 
-    # Sidebar Navigation
     st.sidebar.title("📊 Navigation")
     page = st.sidebar.radio(
         "Choose a section:",
@@ -425,7 +413,6 @@ def main():
                         "FLAG_HOME_ADDRESS_DOCUMENT","FLAG_RG","FLAG_CPF","FLAG_INCOME_PROOF","FLAG_ACSP_RECORD"
                         ]
 
-                # --- Identify bad flags (value N or 1) ---
                 bad_flags = []
 
                 for f in rejection_flags:
@@ -504,26 +491,23 @@ def main():
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
                         job_response  = predict_batch_profiles([model_payload]) 
-                        st.write("📦 Response from batch enqueue:")
-                        print("\n==================== FRONTEND DEBUG: job_response ====================")
-                        print(job_response)
-                        print("===============================================================\n")
-                        st.json(job_response)
-                        st.subheader("📦 JSON enviado al modelo:")
-                        st.code(json.dumps(model_payload, indent=2, ensure_ascii=False), language="json")
+
                     if job_response and "job_id" in job_response:
                         job_id = job_response["job_id"]
-                        st.info(f"Job submitted with ID: {job_id}")
+                        #st.info(f"Job submitted with ID: {job_id}")
 
                     with st.spinner("Waiting for model prediction..."):
                         final_result = fetch_job_result(job_id)
-                        st.write("📄 Final job response:")
-                        st.json(final_result)
+
 
                     if final_result and final_result.get("status") == "finished":
-                        output = final_result.get("result", {})
-                        risk_score = output.get("risk_score")
-                        recommendation = output.get("recommendation")
+                        
+                        output_list = final_result.get("result", [])
+                        output = output_list[0] 
+
+                        risk_score = output.get("probability")
+                        recommendation = output.get("prediction")
+                        threshold = output.get("threshold_used") 
                     else:
                         st.error("Prediction failed or timed out.")
                         risk_score = None
@@ -533,7 +517,8 @@ def main():
                     result = {
                         "risk_score": risk_score,
                         "confidence": 1.0,
-                        "recommendation": recommendation
+                        "recommendation": recommendation,
+                        "threshold": threshold 
                     }
                     display_risk_result(result)
 
