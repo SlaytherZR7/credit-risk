@@ -110,8 +110,7 @@ El frontend permite:
 ### 📊 `notebooks/` — Exploración y prototipos
 
 - `01_EDA.ipynb` — análisis exploratorio
-- `02_Feature_Engineering_Modelado.ipynb` — prototipos de modelado
-- `02_Preprocessing.ipynb` — experimentación con el pipeline de limpieza
+- `03_Model_Visualization.ipynb` — análisis exploratorio
 
 > El entrenamiento final NO depende del notebook,  
 > sino de los scripts en `src/pipelines/`.
