@@ -500,7 +500,7 @@ def main():
                         st.write(f"•", f)
                     risk_score = 1.0
                     recommendation = "Reject Application"
-                    treshold = 1.0
+                    threshold = 1.0
                 else:
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
