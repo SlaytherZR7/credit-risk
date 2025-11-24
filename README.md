@@ -4,13 +4,128 @@
 
 ## 📦 Componentes principales
 
-- `ml_creditrisk/` (paquete Python):
-    - `feature_grouping.py`: utilidades para agrupar variables y auditar Missing%.
-    - `preprocessing.py`: ColumnTransformer desde grupos (imputación, winsor, OHE, target-encoding) y discretizador robusto por cuantiles.
-    - `importance.py`: entrenamiento XGBoost + agregado de importancias a variables originales, filtrado por umbral y plotting.
-    - `models.py`: modelos base (RF, XGBoost, LightGBM, CatBoost) + evaluador y pipeline “GB leaves → OneHot → LR”.
-- `notebooks/02_Feature_Engineering_Modelado.ipynb`: orquesta el flujo E2E (carga → grupos → preprocesamiento → importancia → modelos → predicciones → gráficos).
-- `api/` y `frontend/`: demo opcional con FastAPI/Streamlit (no requerida para el notebook).
+Este proyecto sigue una arquitectura modular inspirada en buenas prácticas de MLOps, separando claramente:
+
+- pipelines de entrenamiento,
+- lógica de preprocesamiento,
+- API de inferencia,
+- frontend de demo,
+- artefactos del modelo,
+- notebooks exploratorios.
+
+A continuación se detallan los componentes clave del repositorio.
+
+---
+
+### 🧠 `src/` — Lógica principal del proyecto
+
+#### 🔹 `src/features/`
+- `build_features.py`  
+  Implementa el pipeline de preprocesamiento completo:
+  - `BaseCleaner` (limpieza + feature engineering)
+  - `CodeImputerWithFlag` (imputación robusta de códigos)
+  - `build_preprocessing_pipeline()` (ColumnTransformer final)
+
+#### 🔹 `src/pipelines/`
+Incluye los **pipelines reproducibles de entrenamiento**:
+
+- `data_preparation_pipeline.py`  
+  Limpieza inicial y generación de datasets en `data/interim/` y `data/processed/`.
+
+- `train_preprocessing.py`  
+  Entrena el preprocesador completo y guarda el artefacto:  
+  `model_service/artifacts/preprocessing_pipeline.joblib`
+
+- `train_model_stack.py`  
+  Entrena el modelo de stacking (XGBoost + LightGBM + meta-XGB)  
+  y genera:  
+  - `model_stack_prod.pkl`  
+  - `model_metadata.json`
+
+#### 🔹 `src/utils/`
+- `split.py`  
+  Funciones auxiliares para dividir dataset en train/test.
+
+---
+
+### 🤖 `model_service/` — Servicio de inferencia (API + worker)
+
+Contiene todo lo necesario para correr el modelo en producción dentro de Docker.
+
+#### 🔹 `model_service/app/`
+- `main.py`  
+  Servicio FastAPI principal: carga modelo + preprocesador.
+- `worker.py`  
+  Worker RQ para tareas en background (inferencias asincrónicas).
+
+##### `model_service/app/model/`
+- `pipeline.py`  
+  Inicialización del modelo y preprocesador.
+- `preprocess.py`  
+  Utilidades para aplicar transformaciones y validaciones en inferencia.
+
+##### `model_service/app/utils/`
+- `schema.py`  
+  Esquemas Pydantic para requests (`PredictionRequest`, batch, etc.)
+- `utils.py`  
+  Funciones auxiliares del servicio.
+
+#### 🔹 `model_service/artifacts/`
+Contiene los artefactos entrenados:
+
+- `preprocessing_pipeline.joblib`
+- `model_stack_prod.pkl`
+- `model_metadata.json`
+
+---
+
+### 🧩 `api/` — API completa con autenticación (opcional)
+
+Una API alternativa, con estructura clásica de FastAPI:
+
+- `app/main.py` — punto de entrada
+- `auth/` — login, JWT, dependencias, validadores
+- `users/` — modelos y repositorio de usuarios
+- `predictions/` — endpoints de scoring
+
+> Esta API no es necesaria para el scoring del modelo,  
+> pero se mantiene como módulo separado para demo con autenticación.
+
+---
+
+### 🎨 `frontend/` — Aplicación Streamlit para demo
+
+- `streamlit_app.py` — interfaz principal
+- `credit_form_interface.py` — mapeo de campos → payload para modelo
+- `field_options.json` — catálogos (sex, estados, productos, etc.)
+- `utils.py` — funciones del frontend
+
+El frontend permite:
+- cargar datos manualmente
+- obtener un scoring del modelo
+- visualizar métricas y simulaciones simples
+
+---
+
+### 📊 `notebooks/` — Exploración y prototipos
+
+- `01_EDA.ipynb` — análisis exploratorio
+- `02_Feature_Engineering_Modelado.ipynb` — prototipos de modelado
+- `02_Preprocessing.ipynb` — experimentación con el pipeline de limpieza
+
+> El entrenamiento final NO depende del notebook,  
+> sino de los scripts en `src/pipelines/`.
+
+---
+
+### 📁 `data/` — Dataset estructurado por etapas
+
+- `raw/` — datos originales  
+- `interim/` — datos intermedios limpios  
+- `processed/` — datasets finales para entrenamiento (X_train, y_train, etc.)
+
+Más detalle en la sección **🗂️ Datos**.
+
 
 ## 🧰 Requisitos y entorno
 
@@ -30,11 +145,49 @@ Notas:
 
 ## 🗂️ Datos
 
-- Ubicación: `data/raw/`
-- Archivos esperados:
-    - `PAKDD2010_VariablesList.XLS` (nombres de columnas)
-    - `PAKDD2010_Modeling_Data.txt` (modelado)
-    - `PAKDD2010_Prediction_Data.txt` (scoring)
+El proyecto utiliza una estructura clara para la gestión del dataset **PAKDD 2010**, separando datos **raw**, **interim** y **processed** para mantener un flujo limpio, ordenado y reproducible.
+
+---
+
+### 📁 Ubicación principal
+
+Los datos se encuentran dentro de la carpeta:
+
+---
+
+### 📌 `data/raw/` — Datos originales (sin modificar)
+
+Archivos requeridos:
+
+- `PAKDD2010_VariablesList.XLS` — Diccionario de variables (nombres y descripciones)
+- `PAKDD2010_Modeling_Data.txt` — Dataset para entrenamiento
+- `PAKDD2010_Prediction_Data.txt` — Dataset para scoring/predicción
+
+Archivo adicional utilizado por el frontend:
+
+- `cities.csv` — Catálogo opcional para autocompletado de ciudades
+
+---
+
+### 📁 `data/interim/` — Datos intermedios
+
+Archivos generados durante la etapa de limpieza inicial:
+
+- `train_clean_headers.parquet` — Versión del dataset con encabezados corregidos y estructura estandarizada
+
+---
+
+### 📁 `data/processed/` — Datos finales para modelado
+
+Archivos generados automáticamente por los pipelines de preprocesamiento:
+
+- `X_train.parquet`
+- `X_test.parquet`
+- `y_train.parquet`
+- `y_test.parquet`
+
+Estos archivos representan los datasets listos para entrenamiento y evaluación de modelos.
+
 
 ## 🧪 Uso del notebook principal
 
@@ -52,6 +205,36 @@ Notas:
      - Los mejores pipelines quedan en `tuned_models`.
      - En la celda de predicciones, `USE_TUNED_MODELS = False` por defecto. Cambiar a `True` para usar `tuned_models` si existen.
 
+## 🔧 Pipelines de Entrenamiento (MLOps)
+
+Además del flujo interactivo en notebooks, este proyecto incluye pipelines reproducibles en src/pipelines/ que permiten entrenar el modelo de manera estandarizada, sin depender del notebook.
+
+Estos scripts orquestan el flujo completo:
+
+1. Preparación de Datos
+
+python src/pipelines/data_preparation_pipeline.py
+
+Limpia y organiza los datos raw, generando los datasets listos para preprocesamiento.
+
+2. Entrenamiento del Preprocesador
+
+python src/pipelines/train_preprocessing.py
+
+Entrena el ColumnTransformer final y guarda el artefacto:
+model_service/artifacts/preprocessing_pipeline.joblib
+
+3. Entrenamiento del Modelo (Stacking)
+
+python src/pipelines/train_model_stack.py
+
+Entrena el modelo de producción y genera:
+
+model_service/artifacts/model_stack_prod.pkl
+model_service/artifacts/model_metadata.json
+
+Estos artefactos son cargados automáticamente por el servicio FastAPI al iniciar, permitiendo usar el modelo entrenado sin depender del notebook.
+
 ## 🤖 Modelos incluidos
 
 - Random Forest (scikit-learn)
@@ -62,17 +245,133 @@ Notas:
 
 ## 🧩 Diseño del preprocesamiento
 
-- Numéricas reales: imputación (−1) → winsor (cuantiles) → robust scaler
-- Numéricas con prioridad (AGE, MONTHS_IN_THE_JOB): discretización por cuantiles (robusta)
-- Categóricas baja cardinalidad y binarias: OneHotEncoder
-- Categóricas alta cardinalidad: TargetEncoder (smoothing=0.3)
-- Todas las decisiones dependen de `df_groups_final` como “single source of truth”.
 
-## Importancia y filtrado
+El proyecto utiliza un pipeline de preprocesamiento **100% reproducible y compatible con scikit-learn**, construido mediante:
 
-- Importancias por feature output se agregan a variables raw originales.
-- Se construye `preprocessor_filtered` con variables ≥ umbral.
-- Tabla de variables eliminadas incluida para auditoría.
+- **`BaseCleaner`** → limpieza avanzada + feature engineering
+- **`CodeImputerWithFlag`** → imputación robusta para códigos numéricos con flags
+- **`ColumnTransformer`** → preprocesamiento paralelo por tipo de variable
+- **`build_preprocessing_pipeline()`** → ensamblado final listo para entrenamiento e inferencia
+
+---
+
+### 🔹 1. Limpieza y Feature Engineering — `BaseCleaner`
+
+`BaseCleaner` aplica transformaciones consistentes sobre los datos raw:
+
+- Conversión de errores de Excel (`#N/A`, `#DIV/0!`, etc.) a `NaN`
+- Normalización de estados, códigos y columnas categóricas problemáticas
+- Generación de nuevas features:
+  - `N_CARDS` (conteo total de tarjetas)
+  - `TOTAL_INCOME`, `INCOME_PER_DEPENDANT`, `LOG_TOTAL_INCOME`
+  - `HAS_CARDS`
+  - `WORKS_SAME_STATE`
+  - Binning de edad → `AGE_GROUP`
+- Corrección de outliers específicos (`QUANT_DEPENDANTS > 15`)
+- Dropeo de columnas ruidosas/irrelevantes (IDs, boroughs, flags redundantes, etc.)
+- Conversión de Y/N → 1/0 en variables binarias
+
+> Este paso concentra toda la ingeniería de features previa al ColumnTransformer.
+
+---
+
+### 🔹 2. Imputación especializada de códigos — `CodeImputerWithFlag`
+
+Las columnas de códigos numéricos reciben un tratamiento especial:
+
+- Imputación con un valor fijo (`-1`)
+- Creación automática de un flag `<col>_WAS_NULL`
+- Salida 100% numérica y consistente
+- Compatible con scikit-learn y modelado basado en árboles
+
+Beneficios:
+- Preserva información sobre valores faltantes  
+- Mantiene compatibilidad con modelos tree-based  
+- Mejora estabilidad e interpretabilidad  
+
+---
+
+### 🔹 3. ColumnTransformer — Preprocesamiento unificado
+
+Las columnas se agrupan en tres bloques:
+
+#### **➤ NUMERIC_FEATS**
+- Imputación: mediana  
+- Escalado: `StandardScaler`
+
+#### **➤ OHE_FEATS**
+- Imputación: moda  
+- Codificación: `OneHotEncoder(handle_unknown='ignore')`
+
+#### **➤ CODE_FEATS**
+- Imputación + flags: `CodeImputerWithFlag`
+
+El resultado es un preprocesamiento robusto, interpretable y listo para producción.
+
+---
+
+### 🔹 4. Pipeline final
+
+El pipeline completo se arma así:
+
+BaseCleaner
+↓
+ColumnTransformer
+(numeric_pipe + categorical_pipe + code_pipe)
+↓
+Dataset final listo para modelado
+
+Este pipeline se serializa como artefacto para inferencia:
+
+- `model_service/artifacts/preprocessing_pipeline.joblib`
+
+---
+
+### 🧠 Resumen
+
+A diferencia del preprocesamiento tradicional (winsor, target encoding, cuantiles), este proyecto implementa un pipeline propio:
+
+- Limpieza manual detallada  
+- Feature engineering guiado por lógica de negocio  
+- ColumnTransformer transparente  
+- Imputación con flags para códigos numéricos  
+- Total compatibilidad con scikit-learn y MLOps
+
+El resultado es un preprocesamiento **robusto, reproducible y listo para producción**.
+
+## 📊 Métricas e información del modelo (model_metadata.json)
+
+Durante el entrenamiento del modelo stacking, el proyecto genera un archivo:
+
+- `model_service/artifacts/model_metadata.json`
+
+
+Este archivo contiene **métricas clave del modelo final**, calculadas sobre el set de test:
+
+- **AUC (`auc`)**  
+  Medida general de discriminación del modelo.
+
+- **Mejor umbral (`best_threshold`)**  
+  Obtenido maximizando el F1-score mediante la curva Precision-Recall.
+
+- **F1-score óptimo (`best_f1`)**
+
+- **Flag de calibración (`calibrated`)**  
+  Indica si el modelo final usa calibración de probabilidades vía Isotonic Regression.
+
+Ejemplo real generado por el pipeline:
+
+```json
+{
+    "auc": 0.6476,
+    "best_threshold": 0.2466,
+    "best_f1": 0.4550,
+    "calibrated": true
+}
+
+Nota:
+A diferencia de otros enfoques, este proyecto no aplica filtrado de variables por importancia.
+El archivo model_metadata.json se utiliza para auditoría del modelo, selección del umbral óptimo y trazabilidad del entrenamiento.
 
 ## ▶️ API / Frontend (opcional)
 
@@ -218,33 +517,6 @@ Estos son los errores más comunes y cómo resolverlos rápidamente.
 - [x] Paquete `ml_creditrisk` con docstrings y funciones reutilizables
 - [x] Notebook principal orquestando el flujo E2E
 - [x] Flags para activar/desactivar HPO y usar modelos tuneados
-
-## Guardar y usar el preprocesador (.joblib)
-
-En la última sección del notebook `02_Feature_Engineering_Modelado.ipynb` se incluye una celda para entrenar el preprocesador activo y guardarlo como artefacto reutilizable.
-
-- Qué guarda:
-    - `models/preprocessor_active_<timestamp>.joblib`: el `ColumnTransformer`/`Pipeline` final ajustado sobre el set de entrenamiento.
-    - `models/preprocessor_active_<timestamp>.json`: metadatos (umbral de importancia, tamaños, fecha, hash de columnas, etc.).
-
-- Cómo cargarlo y usarlo en otro script o sesión:
-  
-    Ejemplo mínimo en Python:
-  
-    1) Cargar el artefacto
-    2) Aplicar `transform` sobre un DataFrame con el mismo esquema de columnas que el de entrenamiento
-
-    Notas:
-    - El artefacto espera las mismas columnas “raw” de entrada que se usaron en el entrenamiento (mismo `df_groups_final`).
-    - Si cambian los grupos o el umbral de importancia, se debe volver a entrenar y guardar un nuevo artefacto.
-
-- Versionado y .gitignore:
-    - Por defecto, `models/*.joblib` y `models/*.json` están ignorados en `.gitignore` para evitar subir artefactos pesados.
-    - Si necesitas versionar un artefacto concreto, puedes:
-        - Forzar el agregado con `git add -f models/preprocessor_active_YYYYMMDD_HHMMSS.joblib` y su `.json`, o
-        - Quitar/ajustar la regla de `.gitignore` para `models/*`.
-
-Sugerencia: mantén un naming consistente y documenta en el metadato el dataset y los flags utilizados (por ejemplo, `IMPORTANCE_THRESHOLD`).
 
 ## 📄 Licencia
 
