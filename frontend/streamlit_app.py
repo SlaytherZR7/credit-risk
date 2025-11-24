@@ -434,27 +434,40 @@ def main():
                         st.write(f"•", f)
                     risk_score = 1.0
                     recommendation = "Reject Application"
-                else:         
+                    threshold = 1.0
+
+                else:
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)
-                        st.write(model_payload)
-                        result = predict_single_profile(model_payload)
-                    if result:
-                        risk_score = result.get("risk_score", 0.5) 
-                        recommendation = result.get("recommendation", "Review")
+
+                        job_response = predict_batch_profiles([model_payload])
+
+                    if job_response and "job_id" in job_response:
+                        job_id = job_response["job_id"]
+
+                    with st.spinner("Waiting for model prediction..."):
+                        final_result = fetch_job_result(job_id)
+
+                    if final_result and final_result.get("status") == "finished":
+
+                        output_list = final_result.get("result", [])
+                        output = output_list[0]
+
+                        risk_score = output.get("probability")
+                        recommendation = output.get("prediction")
+                        threshold = output.get("threshold_used")
                     else:
-                        st.error("Failed to get prediction.")
+                        st.error("Prediction failed or timed out.")
                         risk_score = None
+
                 if risk_score is not None:
                     result = {
                         "risk_score": risk_score,
                         "confidence": 1.0,
-                        "recommendation": recommendation
+                        "recommendation": recommendation,
+                        "threshold": threshold
                     }
                     display_risk_result(result)
-
-
-
 
     # --- BATCH ANALYSIS ---
     elif page == "📊 Batch Analysis":
@@ -487,6 +500,7 @@ def main():
                         st.write(f"•", f)
                     risk_score = 1.0
                     recommendation = "Reject Application"
+                    treshold = 1.0
                 else:
                     with st.spinner("Analyzing credit profile..."):
                         model_payload = build_model_payload_from_form(profile_data)

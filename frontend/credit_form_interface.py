@@ -213,7 +213,7 @@ def create_credit_application_form_m(custom_labels, field_options):
         'Employment Information': ["COMPANY", "PROFESSIONAL_STATE", "PROFESSIONAL_CITY",
                                    "PROFESSIONAL_BOROUGH", "FLAG_PROFESSIONAL_PHONE",
                                    "PROFESSIONAL_PHONE_AREA_CODE", "MONTHS_IN_THE_JOB",
-                                   "PROFESSION_CODE", "OCCUPATION_TYPE", "MATE_PROFESSION_CODE",
+                                   "PROFESSION_CODE", "OCCUPATION_TYPE", "MATE_EDUCATION_LEVEL","MATE_PROFESSION_CODE",
                                    "PROFESSIONAL_ZIP_3"],
         'Financial Information': ["PERSONAL_MONTHLY_INCOME", "OTHER_INCOMES",
                                   "QUANT_BANKING_ACCOUNTS", "QUANT_SPECIAL_BANKING_ACCOUNTS",
